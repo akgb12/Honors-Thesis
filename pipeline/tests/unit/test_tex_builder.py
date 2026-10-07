@@ -28,6 +28,15 @@ def test_adversarial_summary_matches_exact_golden() -> None:
     assert summarize(ir) == _golden(fixture / "expected_elements.txt")
 
 
+def test_lecture_summary_matches_hand_verified_golden() -> None:
+    # Match the source checked lecture summary exactly
+    fixture = FIXTURES / "lecture_sample"
+    bundle = Bundle.from_path(fixture)
+    ir = build(parse_file(fixture), preflight(bundle))
+
+    assert summarize(ir) == _golden(fixture / "expected_elements.txt")
+
+
 def test_builder_preserves_hierarchy_metadata_and_formula_signatures() -> None:
     # Verify canonical hierarchy and source fidelity
     fixture = FIXTURES / "lecture_sample"
