@@ -5,11 +5,13 @@ description = "Accessibility remediation for Beamer slide projects"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "a11y-pipeline",
+    "honors-thesis-backend",
 ]
 
 [dependency-groups]
 dev = [
     "pytest",
+    "pytest-django",
     "pytest-socket",
     "respx",
     "ruff",
@@ -21,6 +23,7 @@ package = false
 
 [tool.uv.sources]
 a11y-pipeline = { workspace = true }
+honors-thesis-backend = { workspace = true }
 
 [tool.uv.workspace]
 members = [

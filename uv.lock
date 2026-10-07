@@ -259,22 +259,28 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "a11y-pipeline" },
+    { name = "honors-thesis-backend" },
 ]
 
 [package.dev-dependencies]
 dev = [
     { name = "pytest" },
+    { name = "pytest-django" },
     { name = "pytest-socket" },
     { name = "respx" },
     { name = "ruff" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "a11y-pipeline", editable = "pipeline" }]
+requires-dist = [
+    { name = "a11y-pipeline", editable = "pipeline" },
+    { name = "honors-thesis-backend", editable = "backend" },
+]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "pytest" },
+    { name = "pytest-django" },
     { name = "pytest-socket" },
     { name = "respx" },
     { name = "ruff" },
