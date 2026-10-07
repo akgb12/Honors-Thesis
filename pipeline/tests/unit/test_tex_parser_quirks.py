@@ -175,6 +175,7 @@ def test_tikz_keeps_raw_source_and_extracts_node_labels() -> None:
         "% comment with {braces}\n"
         "\\node at (0,0) {Alpha};\n"
         "\\node[hidden] at (1,0) {\\small Beta};\n"
+        "\\node at (2,0) {Fold \\n};\n"
         "\\end{tikzpicture}\n"
         "\\end{frame}\n"
     )
@@ -182,7 +183,10 @@ def test_tikz_keeps_raw_source_and_extracts_node_labels() -> None:
     document = parse(source)
     figure = _only_record(document.records, "figure")
 
-    assert figure.attrs == {"subtype": "diagram", "labels": ["Alpha", "Beta"]}
+    assert figure.attrs == {
+        "subtype": "diagram",
+        "labels": ["Alpha", "Beta", "Fold \\n"],
+    }
     assert figure.source.raw.startswith("\\begin{tikzpicture}")
     assert figure.source.raw.endswith("\\end{tikzpicture}")
     assert "% comment with {braces}" in figure.source.raw

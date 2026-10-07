@@ -190,6 +190,7 @@ def test_overlay_commands_and_pause_count_are_recorded() -> None:
         "\\onslide<3>{Three}\n"
         "\\visible<4>{Four}\n"
         "\\invisible<5>{Five}\n"
+        "\\onslide<6-> Loose text\n"
         "\\end{frame}\n"
     )
 
@@ -205,9 +206,9 @@ def test_overlay_commands_and_pause_count_are_recorded() -> None:
         texts.append(overlay.children[0].text or "")
 
     assert frame.attrs["pauses"] == 1
-    assert commands == ["only", "uncover", "onslide", "visible", "invisible"]
-    assert specs == ["1", "2-", "3", "4", "5"]
-    assert texts == ["One", "Two", "Three", "Four", "Five"]
+    assert commands == ["only", "uncover", "onslide", "visible", "invisible", "onslide"]
+    assert specs == ["1", "2-", "3", "4", "5", "6-"]
+    assert texts == ["One", "Two", "Three", "Four", "Five", "Loose text"]
 
 
 def test_formatting_macros_are_transparent_and_spacing_is_dropped() -> None:

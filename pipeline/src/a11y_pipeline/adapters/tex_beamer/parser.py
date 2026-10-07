@@ -751,6 +751,14 @@ class _Parser:
         if argument is not None:
             end = argument.pos + argument.len
             children = self._content_records(argument.nodelist)
+        elif overlay is None:
+            overlay, loose_children, loose_end, loose_index = self._loose_overlay(
+                siblings,
+                index,
+            )
+            children.extend(loose_children)
+            end = loose_end
+            final_index = loose_index
         elif final_index > index:
             sibling = siblings[final_index]
             end = sibling.pos + sibling.len
@@ -766,6 +774,25 @@ class _Parser:
             ),
             final_index,
         )
+
+    def _loose_overlay(
+        self,
+        siblings: list[Any],
+        index: int,
+    ) -> tuple[str | None, list[NativeRecord], int, int]:
+        # Parse an unbraced overlay whose text shares a character node
+        children: list[NativeRecord] = []
+        if index + 1 >= len(siblings):
+            return None, children, siblings[index].pos + siblings[index].len, index
+        sibling = siblings[index + 1]
+        if not isinstance(sibling, LatexCharsNode):
+            return None, children, siblings[index].pos + siblings[index].len, index
+        match = re.match(r"\s*<([^>]*)>", sibling.chars)
+        if match is None:
+            return None, children, siblings[index].pos + siblings[index].len, index
+        content_start = sibling.pos + match.end()
+        children = self._content_records([sibling], minimum_pos=content_start)
+        return match.group(1), children, sibling.pos + sibling.len, index + 1
 
     def _overlay_group_after(
         self,
@@ -832,7 +859,7 @@ class _Parser:
                 while position < len(nodes):
                     sibling = nodes[position]
                     if isinstance(sibling, LatexGroupNode):
-                        label = self._normalize(self._text_from_nodes(sibling.nodelist))
+                        label = self._normalize(self._tikz_label_text(sibling.nodelist))
                         if label:
                             labels.append(label)
                         break
@@ -841,6 +868,32 @@ class _Parser:
                     position += 1
             if isinstance(node, LatexEnvironmentNode) or isinstance(node, LatexGroupNode):
                 self._tikz_labels(node.nodelist, labels)
+
+    def _tikz_label_text(self, nodes: list[Any]) -> str:
+        # Preserve unresolved label macros while dropping visual formatting
+        text = ""
+        for node in nodes:
+            if isinstance(node, LatexCommentNode):
+                continue
+            if isinstance(node, LatexCharsNode):
+                text += node.chars
+            elif isinstance(node, LatexGroupNode):
+                text += self._tikz_label_text(node.nodelist)
+            elif isinstance(node, LatexMathNode):
+                text += node.latex_verbatim()
+            elif isinstance(node, LatexMacroNode):
+                name = node.macroname
+                if name in ESCAPE_MACROS:
+                    text += ESCAPE_MACROS[name]
+                elif name in DECLARATION_MACROS or name in SPACING_MACROS:
+                    continue
+                elif name in FORMATTING_MACROS:
+                    argument = self._required_argument(node)
+                    if argument is not None:
+                        text += self._tikz_label_text(argument.nodelist)
+                else:
+                    text += node.latex_verbatim()
+        return text
 
     def _math_node(self, node: LatexMathNode, inline: bool) -> NativeRecord:
         # Preserve formula delimiters in source and body TeX in attributes
