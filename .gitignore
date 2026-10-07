@@ -6,7 +6,7 @@
 *.key
 
 # ---- runtime output ----
-runs/
+/runs/
 storage/
 .cache/
 

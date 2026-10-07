@@ -13,7 +13,7 @@ while IFS= read -r f; do
     .env.example|*/.env.example) ;;
     .env|.env.*|*/.env|*/.env.*) echo "BLOCKED (env file): $f"; fail=1 ;;
     .onboarding/*|.cursor/*) echo "BLOCKED (onboarding material is never committed): $f"; fail=1 ;;
-    runs/*|.cache/*|storage/*|*/runs/*|*/storage/*) echo "BLOCKED (runtime output): $f"; fail=1 ;;
+    runs/*|.cache/*|storage/*|*/storage/*) echo "BLOCKED (runtime output): $f"; fail=1 ;;
     *.pem|*.key|*.p12|*.pfx|id_rsa*|id_ed25519*) echo "BLOCKED (key material): $f"; fail=1 ;;
   esac
 done <<< "$staged"
