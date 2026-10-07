@@ -48,6 +48,55 @@ uv run ruff check .
 uv run ruff format --check .
 ```
 
+## Part 2 backend
+
+Start the installed PostgreSQL 18 service and create the local database once:
+
+```bash
+brew services start postgresql@18
+createdb honors_thesis
+```
+
+Install every workspace package, copy the environment template if needed, and keep
+`MODEL_PROVIDER=fake` for local work:
+
+```bash
+bash scripts/setup_uv_environment.sh
+cp .env.example .env
+```
+
+Apply migrations and start the Django API:
+
+```bash
+MODEL_PROVIDER=fake uv run python backend/manage.py migrate
+MODEL_PROVIDER=fake uv run python backend/manage.py runserver
+```
+
+In a second terminal, start the database task worker:
+
+```bash
+MODEL_PROVIDER=fake uv run python backend/manage.py db_worker
+```
+
+Run one queued task and exit with:
+
+```bash
+MODEL_PROVIDER=fake uv run python backend/manage.py db_worker \
+  --batch --max-tasks 1 --no-reload --no-startup-delay
+```
+
+Run the PostgreSQL backend tests, all workspace tests, Django checks, migration checks, and
+Ruff:
+
+```bash
+MODEL_PROVIDER=fake uv run pytest backend/projects/tests -q
+MODEL_PROVIDER=fake uv run pytest -q
+MODEL_PROVIDER=fake uv run python backend/manage.py check
+MODEL_PROVIDER=fake uv run python backend/manage.py makemigrations --check --dry-run
+uv run ruff check .
+uv run ruff format --check .
+```
+
 Real Anthropic runs require `MODEL_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, and positive
 `MODEL_INPUT_USD_PER_MTOK` and `MODEL_OUTPUT_USD_PER_MTOK` values in `.env`. The local test
 suite and development workflow use only the fake provider.
