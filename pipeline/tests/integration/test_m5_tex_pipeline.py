@@ -126,21 +126,15 @@ def _assert_figure_bbox_accuracy(
 @pytest.mark.tex
 def test_compile_failure_reports_first_tex_error(tmp_path: Path) -> None:
     # Surface the first TeX error with its source line
-    source = (
-        "\\documentclass{beamer}\n"
-        "\\begin{document}\n"
-        "\\begin{frame}\n"
-        "\\undefinedcommand\n"
-        "\\end{frame}\n"
-        "\\end{document}\n"
-    )
+    source = "\\documentclass{beamer}\n\\input{bad}\n\\begin{document}\n\\end{document}\n"
     (tmp_path / "main.tex").write_text(source, encoding="utf-8")
+    (tmp_path / "bad.tex").write_text("\\undefinedcommand\n", encoding="utf-8")
 
     with pytest.raises(CompileError) as caught:
         compile_project(tmp_path, "main.tex")
 
-    assert caught.value.source_file == "main.tex"
-    assert caught.value.line == 5
+    assert caught.value.source_file == "bad.tex"
+    assert caught.value.line == 1
     assert caught.value.tex_error is not None
     assert "Undefined control sequence" in caught.value.tex_error
     assert caught.value.log_path.is_file()

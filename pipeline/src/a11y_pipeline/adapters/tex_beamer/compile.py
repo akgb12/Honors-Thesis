@@ -79,13 +79,20 @@ def compile_project(
         error_source = tex_log.read_text(encoding="utf-8", errors="replace")
     if completed.returncode != 0:
         tex_error, line = _first_tex_error(error_source)
-        location = main_file
+        error_file, reported_line, reported_error = _first_file_error(output)
+        if error_file is None:
+            error_file = main_file
+        if reported_line is not None:
+            line = reported_line
+        if tex_error is None:
+            tex_error = reported_error
+        location = error_file
         if line is not None:
-            location = f"{main_file}:{line}"
+            location = f"{error_file}:{line}"
         detail = tex_error or "latexmk failed without a TeX error line"
         raise CompileError(
             f"{location}: {detail}",
-            source_file=main_file,
+            source_file=error_file,
             line=line,
             tex_error=tex_error,
             log_path=output_path,
@@ -140,3 +147,16 @@ def _first_tex_error(log_text: str) -> tuple[str | None, int | None]:
     if line_match is not None:
         line = int(line_match.group(1))
     return match.group(1).strip(), line
+
+
+def _first_file_error(
+    output: str,
+) -> tuple[str | None, int | None, str | None]:
+    # Extract the first file line diagnostic emitted by pdfLaTeX
+    match = re.search(r"^(.+?\.tex):(\d+):\s*(.+)$", output, re.MULTILINE)
+    if match is None:
+        return None, None, None
+    source_file = match.group(1).strip()
+    if source_file.startswith("./"):
+        source_file = source_file[2:]
+    return source_file, int(match.group(2)), match.group(3).strip()
