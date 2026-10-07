@@ -25,6 +25,8 @@ class RunState(BaseModel):
     bundle: Bundle | None = None
     preflight_result: Any | None = None
     base_ir: DocumentIR | None = None
+    original_pdf: Path | None = None
+    marked_pdf: Path | None = None
     candidates: list[Candidate] = Field(default_factory=list)
     current_round: int = 0
     repair_counts: dict[str, int] = Field(default_factory=dict)

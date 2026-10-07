@@ -1,14 +1,16 @@
+import shutil
 from pathlib import Path
 from typing import Any
 
-from a11y_pipeline.adapters.base import PreparedDocument, SourceAdapter
+from a11y_pipeline.adapters.base import PreparedDocument, SourceAdapter, WrittenDocument
 from a11y_pipeline.adapters.tex_beamer.aux_reader import apply_aux_mapping, read_aux
-from a11y_pipeline.adapters.tex_beamer.builder import build
+from a11y_pipeline.adapters.tex_beamer.builder import build, summarize
 from a11y_pipeline.adapters.tex_beamer.compile import compile_project
 from a11y_pipeline.adapters.tex_beamer.markers import inject_markers
 from a11y_pipeline.adapters.tex_beamer.parser import parse
 from a11y_pipeline.adapters.tex_beamer.preflight import preflight
 from a11y_pipeline.adapters.tex_beamer.working_copy import create_working_copies
+from a11y_pipeline.adapters.tex_beamer.writer import verify_updated_project, write_updated_project
 from a11y_pipeline.bundle.bundle import Bundle
 from a11y_pipeline.capabilities.base import FigureDescriptionInput
 from a11y_pipeline.evaluation.concepts import (
@@ -29,6 +31,10 @@ class TexBeamerAdapter:
     def build_ir(self, bundle: Bundle, preflight_result: Any) -> DocumentIR:
         # Parse Beamer source into canonical records
         return build(parse(bundle), preflight_result)
+
+    def summarize(self, ir: DocumentIR) -> str:
+        # Summarize parsed Beamer elements
+        return summarize(ir)
 
     def prepare(
         self,
@@ -52,6 +58,35 @@ class TexBeamerAdapter:
             figure_inputs=figure_inputs,
             original_pdf=original.pdf_path,
             marked_pdf=marked.pdf_path,
+        )
+
+    def write_back(
+        self,
+        bundle: Bundle,
+        ir: DocumentIR,
+        output_root: Path,
+        diff_path: Path,
+        verification_root: Path,
+        original_pdf: Path,
+        timeout_seconds: int,
+    ) -> WrittenDocument:
+        # Write and verify safe Beamer source updates
+        result = write_updated_project(bundle, ir, output_root, diff_path)
+        shutil.copytree(result.project_root, verification_root)
+        verification = verify_updated_project(
+            original_pdf,
+            verification_root,
+            bundle.main_file,
+            timeout_seconds=timeout_seconds,
+        )
+        issues = list(result.issues)
+        issues.extend(visual_change_issues(ir, verification.pixel_check))
+        return WrittenDocument(
+            project_root=result.project_root,
+            diff_path=result.diff_path,
+            issues=issues,
+            operations=result.operations,
+            pixel_check=verification.pixel_check,
         )
 
 
@@ -163,4 +198,10 @@ def _figure_labels(element: Element) -> list[str]:
     return infer_tikz_labels(element.source.raw or "", parsed)
 
 
-__all__ = ["ADAPTER_REGISTRY", "PreparedDocument", "SourceAdapter", "get_adapter"]
+__all__ = [
+    "ADAPTER_REGISTRY",
+    "PreparedDocument",
+    "SourceAdapter",
+    "WrittenDocument",
+    "get_adapter",
+]

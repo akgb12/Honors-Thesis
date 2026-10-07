@@ -71,6 +71,8 @@ def compile_and_map_node(state: RunState) -> dict[str, object]:
     return {
         "base_ir": prepared.ir,
         "figure_inputs": prepared.figure_inputs,
+        "original_pdf": prepared.original_pdf,
+        "marked_pdf": prepared.marked_pdf,
         "issues": list(prepared.ir.issues),
     }
 

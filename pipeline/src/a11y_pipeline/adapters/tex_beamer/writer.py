@@ -68,9 +68,10 @@ def verify_updated_project(
     project_root: Path,
     main_file: str,
     dpi: int = 80,
+    timeout_seconds: int = 180,
 ) -> UpdatedProjectVerification:
     # Compile an updated project and compare every rendered page
-    compile_result = compile_project(project_root, main_file)
+    compile_result = compile_project(project_root, main_file, timeout_seconds)
     pixel_check = compare_pdf_pixels(original_pdf, compile_result.pdf_path, dpi=dpi)
     return UpdatedProjectVerification(
         compile_result=compile_result,
