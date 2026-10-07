@@ -89,6 +89,14 @@ class _Builder:
             if element.semantic_type == "heading" and element.attrs.get("level") == 2:
                 title_element_id = element_id
                 break
+            if element.semantic_type == "title_page":
+                for child_id in element.child_ids:
+                    child = self.elements[child_id]
+                    if child.semantic_type == "document_title":
+                        title_element_id = child_id
+                        break
+                if title_element_id is not None:
+                    break
         return Container(
             id=slide_id,
             kind="slide",

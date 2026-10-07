@@ -53,6 +53,7 @@ def test_builder_preserves_hierarchy_metadata_and_formula_signatures() -> None:
         "lang": "en-US",
     }
     title_page = ir.elements["slide_01/title_page_01"]
+    assert ir.containers[0].title_element_id == ("slide_01/title_page_01/document_title_01")
     assert title_page.child_ids == [
         "slide_01/title_page_01/document_title_01",
         "slide_01/title_page_01/paragraph_01",
