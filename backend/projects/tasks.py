@@ -70,6 +70,7 @@ def _update_completed_run(run: Run, target: Path, completed: object) -> None:
     run.finished_at = timezone.now()
     run.run_dir = f"runs/{run.id}"
     run.main_file = manifest.get("inputs", {}).get("main_file", run.main_file)
+    run.model_provider = manifest.get("model", {}).get("provider", run.model_provider)
     run.stop_reason = manifest.get("stop_reason") or ""
     run.a_score = completed.stats.accessibility.value
     run.f_score = completed.stats.fidelity.value
@@ -87,6 +88,7 @@ def _update_run_from_manifest(run: Run, target: Path, status: str) -> None:
     run.finished_at = timezone.now()
     run.run_dir = f"runs/{run.id}"
     run.main_file = manifest.get("inputs", {}).get("main_file", run.main_file)
+    run.model_provider = manifest.get("model", {}).get("provider", run.model_provider)
     run.stop_reason = manifest.get("stop_reason") or "preflight_blocked"
     run.input_tokens = int(totals.get("input_tokens", 0))
     run.output_tokens = int(totals.get("output_tokens", 0))

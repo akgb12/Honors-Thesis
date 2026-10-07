@@ -210,6 +210,7 @@ def test_medium_run_review_and_artifact_downloads(client: Client) -> None:
     run = Run.objects.get(id=run_id)
     assert run.status == Run.Status.SUCCEEDED
     assert run.run_dir == f"runs/{run.id}"
+    assert run.model_provider == "fake"
     assert run.input_tokens == 24
     assert run.output_tokens == 16
 
