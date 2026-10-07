@@ -1,3 +1,4 @@
+from a11y_pipeline.adapters.tex_beamer.builder import build, summarize
 from a11y_pipeline.adapters.tex_beamer.parser import parse, parse_file
 from a11y_pipeline.adapters.tex_beamer.preflight import (
     PreflightIssue,
@@ -16,7 +17,9 @@ __all__ = [
     "NativeSource",
     "PreflightIssue",
     "PreflightResult",
+    "build",
     "parse",
     "parse_file",
     "preflight",
+    "summarize",
 ]
