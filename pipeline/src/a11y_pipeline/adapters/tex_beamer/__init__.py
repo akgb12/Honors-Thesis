@@ -1,7 +1,22 @@
+from a11y_pipeline.adapters.tex_beamer.parser import parse, parse_file
 from a11y_pipeline.adapters.tex_beamer.preflight import (
     PreflightIssue,
     PreflightResult,
     preflight,
 )
+from a11y_pipeline.adapters.tex_beamer.records import (
+    NativeDocument,
+    NativeRecord,
+    NativeSource,
+)
 
-__all__ = ["PreflightIssue", "PreflightResult", "preflight"]
+__all__ = [
+    "NativeDocument",
+    "NativeRecord",
+    "NativeSource",
+    "PreflightIssue",
+    "PreflightResult",
+    "parse",
+    "parse_file",
+    "preflight",
+]
