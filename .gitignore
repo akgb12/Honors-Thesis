@@ -11,7 +11,9 @@ storage/
 .cache/
 
 # ---- Python ----
+.venv
 .venv/
+venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/

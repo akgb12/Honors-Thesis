@@ -10,8 +10,11 @@ generates tagged PDFs, and records provenance, evaluation results, and run telem
 Install Python 3.12 and uv, then install the workspace dependencies:
 
 ```bash
-uv sync
+bash scripts/setup_uv_environment.sh
 ```
+
+The setup script keeps the environment in `venv/` and exposes it through `.venv`. This
+avoids macOS hidden file flags breaking editable package imports during repeated uv commands.
 
 Copy the environment template and leave `MODEL_PROVIDER=fake` for local deterministic runs:
 
