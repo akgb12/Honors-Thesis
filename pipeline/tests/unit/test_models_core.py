@@ -60,6 +60,15 @@ def test_settings_default_to_fake_without_model_prices() -> None:
             },
             "MODEL_OUTPUT_USD_PER_MTOK",
         ),
+        (
+            {
+                "model_provider": "anthropic",
+                "anthropic_api_key": "local-test-value",
+                "model_input_usd_per_mtok": "",
+                "model_output_usd_per_mtok": "",
+            },
+            "MODEL_INPUT_USD_PER_MTOK",
+        ),
     ],
 )
 def test_settings_refuse_incomplete_anthropic_configuration(
@@ -84,6 +93,20 @@ def test_settings_hide_anthropic_key_from_representation() -> None:
 
     assert marker not in repr(settings)
     assert marker not in str(settings)
+
+
+def test_settings_hide_anthropic_key_from_validation_errors() -> None:
+    # Keep credentials out of incomplete configuration errors
+    marker = "local-test-value"
+
+    with pytest.raises(ValidationError) as error:
+        Settings(
+            _env_file=None,
+            model_provider="anthropic",
+            anthropic_api_key=marker,
+        )
+
+    assert marker not in str(error.value)
 
 
 def test_fake_model_client_runs_weak_then_good_script() -> None:

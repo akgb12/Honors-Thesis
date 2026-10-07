@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Literal
 
-from pydantic import SecretStr, model_validator
+from pydantic import SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,6 +11,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=False,
+        hide_input_in_errors=True,
     )
 
     model_provider: Literal["fake", "anthropic"] = "fake"
@@ -32,6 +33,14 @@ class Settings(BaseSettings):
     compile_timeout_seconds: int = 180
     default_lang: str = "en-US"
     verapdf_path: Path | None = None
+
+    @field_validator("model_input_usd_per_mtok", "model_output_usd_per_mtok", mode="before")
+    @classmethod
+    def empty_price_is_missing(cls, value: object) -> object:
+        # Treat blank environment prices as missing values
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
     @model_validator(mode="after")
     def validate_anthropic_settings(self) -> "Settings":
