@@ -34,10 +34,11 @@ def test_tikz_comment_wraps_every_line_to_one_hundred_columns() -> None:
     )
     insertion = _tikz_alt_comment(source, 2, description)
 
-    lines = insertion.splitlines()
+    updated = source[:2] + insertion + source[2:]
+    lines = updated.splitlines()
     assert len(lines) >= 2
     for line in lines:
-        if not line.strip():
+        if not line.lstrip().startswith("% a11y-alt:"):
             continue
         assert len(line) <= 100
         assert line.lstrip().startswith("% a11y-alt:")

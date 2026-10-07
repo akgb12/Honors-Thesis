@@ -239,7 +239,7 @@ def _tikz_alt_comment(text: str, position: int, description: str) -> str:
             continue
         wrapped = textwrap.wrap(
             paragraph.strip(),
-            width=100 - len(ALT_PREFIX),
+            width=100 - len(ALT_PREFIX) - len(indentation),
             break_long_words=True,
             break_on_hyphens=False,
         )
