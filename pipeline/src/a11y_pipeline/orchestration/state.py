@@ -39,6 +39,7 @@ class RunState(BaseModel):
     routed_tasks: list[RoutedTask] = Field(default_factory=list)
     pending_element_ids: list[str] = Field(default_factory=list)
     pending_results: list[CapabilityResult] = Field(default_factory=list)
+    pending_candidate: Candidate | None = None
     active_patches: list[Patch] = Field(default_factory=list)
     candidate_ir: DocumentIR | None = None
     failing_element_ids: list[str] = Field(default_factory=list)
