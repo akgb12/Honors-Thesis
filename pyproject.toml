@@ -34,6 +34,9 @@ members = [
 [tool.pytest.ini_options]
 addopts = "--disable-socket --allow-unix-socket"
 DJANGO_SETTINGS_MODULE = "config.test_settings"
+pythonpath = [
+    "backend",
+]
 markers = [
     "slow: marks slow end-to-end tests",
     "tex: marks tests that require a TeX toolchain",

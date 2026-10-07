@@ -34,6 +34,14 @@ class Settings(BaseSettings):
     default_lang: str = "en-US"
     verapdf_path: Path | None = None
 
+    @field_validator("anthropic_api_key", mode="before")
+    @classmethod
+    def empty_secret_is_missing(cls, value: object) -> object:
+        # Treat a blank model secret as absent
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
     @field_validator("model_input_usd_per_mtok", "model_output_usd_per_mtok", mode="before")
     @classmethod
     def empty_price_is_missing(cls, value: object) -> object:
