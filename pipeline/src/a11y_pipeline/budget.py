@@ -64,7 +64,11 @@ class BudgetedModelClient:
 
     def complete_structured(self, request: ModelRequest) -> ModelResponse:
         # Check the estimate and record the actual call cost
-        self.budget.check(request, self.pricing)
-        response = self.client.complete_structured(request)
+        estimated_cost = self.budget.check(request, self.pricing)
+        try:
+            response = self.client.complete_structured(request)
+        except Exception:
+            self.budget.record(estimated_cost)
+            raise
         self.budget.record(response.cost_usd)
         return response
