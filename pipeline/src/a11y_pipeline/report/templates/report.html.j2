@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Accessibility report for {{ document_title }}</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17202a;
+      --muted: #5d6d7e;
+      --line: #d5d8dc;
+      --panel: #f7f9f9;
+      --done: #1e8449;
+      --model-generated: #2471a3;
+      --needs-description: #b9770e;
+      --needs-review: #ca6f1e;
+      --failed: #c0392b;
+      --missing-asset: #7d3c98;
+      --not-handled: #616a6b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: #fff;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.45;
+    }
+    header, main { width: min(1400px, 96vw); margin: 0 auto; }
+    header { padding: 2rem 0 1rem; }
+    h1, h2, h3 { line-height: 1.2; }
+    h2 { margin-top: 2.5rem; border-bottom: 2px solid var(--line); padding-bottom: .4rem; }
+    .muted { color: var(--muted); }
+    .summary-grid, .score-grid, .page-grid {
+      display: grid;
+      gap: 1rem;
+    }
+    .summary-grid { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+    .score-grid { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+    .page-grid { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+    .card {
+      border: 1px solid var(--line);
+      border-radius: .5rem;
+      background: var(--panel);
+      padding: 1rem;
+    }
+    .score { font-size: 2rem; font-weight: 700; }
+    .metric-list { margin: .75rem 0 0; padding-left: 1.2rem; }
+    .status-list { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .badge {
+      display: inline-block;
+      border-radius: 999px;
+      color: #fff;
+      padding: .2rem .6rem;
+      background: #566573;
+      font-size: .85rem;
+    }
+    .page-card { min-width: 0; }
+    .page-stage { position: relative; width: 100%; }
+    .page-stage img { display: block; width: 100%; height: auto; border: 1px solid var(--line); }
+    .element-box {
+      position: absolute;
+      min-width: 8px;
+      min-height: 8px;
+      border: 3px solid;
+      background: transparent;
+      padding: 0;
+      cursor: pointer;
+    }
+    .element-box:focus, .element-box:hover { background: rgb(255 255 255 / 35%); outline: 2px solid #111; }
+    .status-done { border-color: var(--done); }
+    .status-model_generated { border-color: var(--model-generated); }
+    .status-needs_description { border-color: var(--needs-description); }
+    .status-needs_review { border-color: var(--needs-review); }
+    .status-failed { border-color: var(--failed); }
+    .status-missing_asset { border-color: var(--missing-asset); }
+    .status-not_handled { border-color: var(--not-handled); }
+    #element-detail { min-height: 4.5rem; margin-top: 1rem; }
+    .issue-veto, .issue-error { border-left: .35rem solid var(--failed); }
+    .issue-warning { border-left: .35rem solid var(--needs-description); }
+    .issue-info { border-left: .35rem solid var(--model-generated); }
+    table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+    th, td { border: 1px solid var(--line); padding: .45rem; text-align: left; vertical-align: top; }
+    th { background: #edf1f2; position: sticky; top: 0; }
+    .table-wrap { overflow-x: auto; max-height: 38rem; }
+    .selected-row { background: #e8f8f5; }
+    code { overflow-wrap: anywhere; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Accessibility report</h1>
+    <p>{{ document_title }}</p>
+    <p class="muted">Run {{ run_id }}</p>
+  </header>
+  <main>
+    <section aria-labelledby="summary-heading">
+      <h2 id="summary-heading">Summary</h2>
+      <div class="score-grid">
+        <article class="card">
+          <h3>Preliminary A</h3>
+          <div class="score">
+            {% if stats.accessibility.value is not none %}{{ "%.1f"|format(stats.accessibility.value) }}{% else %}N/A{% endif %}
+          </div>
+          <p>Applicable accessibility submetrics</p>
+          <ul class="metric-list">
+            {% for name, value in stats.accessibility.applicable_metrics.items() %}
+            <li>{{ name }} {{ "%.1f"|format(value) }}</li>
+            {% else %}
+            <li>None</li>
+            {% endfor %}
+          </ul>
+        </article>
+        <article class="card">
+          <h3>Preliminary F</h3>
+          <div class="score">
+            {% if stats.fidelity.value is not none %}{{ "%.1f"|format(stats.fidelity.value) }}{% else %}N/A{% endif %}
+          </div>
+          <p>Applicable fidelity submetrics</p>
+          <ul class="metric-list">
+            {% for name, value in stats.fidelity.applicable_metrics.items() %}
+            <li>{{ name }} {{ "%.1f"|format(value) }}</li>
+            {% else %}
+            <li>None</li>
+            {% endfor %}
+          </ul>
+        </article>
+      </div>
+      <div class="summary-grid">
+        <article class="card"><strong>Stop reason</strong><br>{{ stats.stop_reason }}</article>
+        <article class="card"><strong>Model calls</strong><br>{{ stats.model_calls }}</article>
+        <article class="card"><strong>Input tokens</strong><br>{{ stats.input_tokens }}</article>
+        <article class="card"><strong>Output tokens</strong><br>{{ stats.output_tokens }}</article>
+        <article class="card"><strong>Cost</strong><br>${{ "%.6f"|format(stats.cost_usd) }}</article>
+      </div>
+      <h3>Status counts</h3>
+      <div class="status-list">
+        {% for item in status_counts %}
+        <span class="badge">{{ item.status }} {{ item.count }}</span>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section aria-labelledby="pages-heading">
+      <h2 id="pages-heading">Pages</h2>
+      <p>Colored boxes show mapped elements. Select a box for details.</p>
+      <div id="element-detail" class="card" aria-live="polite">No element selected</div>
+      <div class="page-grid">
+        {% for page in pages %}
+        <article class="page-card">
+          <h3>Page {{ page.number }}</h3>
+          <div class="page-stage">
+            <img src="{{ page.image }}" alt="Rendered slide page {{ page.number }}">
+            {% for box in page.boxes %}
+            <button
+              class="element-box status-{{ box.status }}"
+              style="left:{{ box.left }}%;top:{{ box.top }}%;width:{{ box.width }}%;height:{{ box.height }}%"
+              type="button"
+              title="{{ box.id }} {{ box.status }}"
+              aria-label="{{ box.id }} {{ box.status }}"
+              data-id="{{ box.id }}"
+              data-type="{{ box.type }}"
+              data-role="{{ box.role }}"
+              data-status="{{ box.status }}"
+              data-alt="{{ box.alt_text }}"
+            ></button>
+            {% endfor %}
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section aria-labelledby="issues-heading">
+      <h2 id="issues-heading">Issues</h2>
+      {% for group in issue_groups %}
+      <h3>{{ group.severity|capitalize }} {{ group.issues|length }}</h3>
+      {% for issue in group.issues %}
+      <article class="card issue-{{ group.severity }}">
+        <strong>{{ issue.code }}</strong>
+        {% if issue.element_id %}<code>{{ issue.element_id }}</code>{% endif %}
+        <div>{{ issue.message }}</div>
+      </article>
+      {% else %}
+      <p>None</p>
+      {% endfor %}
+      {% endfor %}
+    </section>
+
+    <section aria-labelledby="elements-heading">
+      <h2 id="elements-heading">Elements</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th><th>Type</th><th>Role</th><th>Status</th>
+              <th>Source lines</th><th>Pages</th><th>Alt text</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for element in elements %}
+            <tr>
+              <td><code>{{ element.id }}</code></td>
+              <td>{{ element.type }}</td>
+              <td>{{ element.role }}</td>
+              <td>{{ element.status }}</td>
+              <td>{{ element.source }}</td>
+              <td>{{ element.pages }}</td>
+              <td>{{ element.alt_text }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section aria-labelledby="history-heading">
+      <h2 id="history-heading">Candidate round history</h2>
+      <table>
+        <thead>
+          <tr><th>Candidate</th><th>Round</th><th>A</th><th>F</th><th>Patches</th><th>Vetoes</th></tr>
+        </thead>
+        <tbody>
+          {% for candidate in candidates %}
+          <tr{% if candidate.selected %} class="selected-row"{% endif %}>
+            <td>{{ candidate.id }}{% if candidate.selected %} selected{% endif %}</td>
+            <td>{{ candidate.round }}</td>
+            <td>{% if candidate.score_a is not none %}{{ "%.1f"|format(candidate.score_a) }}{% else %}N/A{% endif %}</td>
+            <td>{% if candidate.score_f is not none %}{{ "%.1f"|format(candidate.score_f) }}{% else %}N/A{% endif %}</td>
+            <td>{{ candidate.patches }}</td>
+            <td>{{ candidate.vetoes }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    <section aria-labelledby="unhandled-heading">
+      <h2 id="unhandled-heading">Not handled</h2>
+      {% for element in not_handled %}
+      <article class="card">
+        <code>{{ element.id }}</code>
+        <div>{{ element.source.native_type }} at {{ element.source.file }}:{{ element.source.line_start }}</div>
+        {% if element.source.raw %}<pre>{{ element.source.raw }}</pre>{% endif %}
+      </article>
+      {% else %}
+      <p>No unhandled elements</p>
+      {% endfor %}
+    </section>
+  </main>
+  <script>
+    const detail = document.getElementById("element-detail");
+    for (const box of document.querySelectorAll(".element-box")) {
+      box.addEventListener("click", () => {
+        const alt = box.dataset.alt || "No alt text";
+        detail.textContent = `${box.dataset.id} | ${box.dataset.type} | ${box.dataset.role} | ${box.dataset.status} | ${alt}`;
+      });
+    }
+  </script>
+</body>
+</html>
