@@ -1,3 +1,4 @@
+from a11y_pipeline.models.cache import CachedModelClient, DiskModelCache, cache_key
 from a11y_pipeline.models.client import (
     ModelClient,
     ModelMessage,
@@ -8,6 +9,8 @@ from a11y_pipeline.models.fake import FakeModelClient, FakeScriptResponse
 from a11y_pipeline.models.pricing import ModelPricing
 
 __all__ = [
+    "CachedModelClient",
+    "DiskModelCache",
     "FakeModelClient",
     "FakeScriptResponse",
     "ModelClient",
@@ -15,4 +18,5 @@ __all__ = [
     "ModelPricing",
     "ModelRequest",
     "ModelResponse",
+    "cache_key",
 ]
