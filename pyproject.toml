@@ -24,22 +24,26 @@ a11y-pipeline = { workspace = true }
 
 [tool.uv.workspace]
 members = [
+    "backend",
     "pipeline",
 ]
 
 [tool.pytest.ini_options]
 addopts = "--disable-socket --allow-unix-socket"
+DJANGO_SETTINGS_MODULE = "config.test_settings"
 markers = [
     "slow: marks slow end-to-end tests",
     "tex: marks tests that require a TeX toolchain",
 ]
 testpaths = [
+    "backend/projects/tests",
     "pipeline/tests",
 ]
 
 [tool.ruff]
 line-length = 100
 src = [
+    "backend",
     "pipeline/src",
 ]
 target-version = "py312"
@@ -52,3 +56,6 @@ select = [
     "I",
     "UP",
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"backend/config/test_settings.py" = ["F403"]
