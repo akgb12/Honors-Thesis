@@ -1,0 +1,53 @@
+[project]
+name = "honors-thesis"
+version = "0.1.0"
+description = "Accessibility remediation for Beamer slide projects"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "a11y-pipeline",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-socket",
+    "respx",
+    "ruff",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+a11y-pipeline = { workspace = true }
+
+[tool.uv.workspace]
+members = [
+    "pipeline",
+]
+
+[tool.pytest.ini_options]
+addopts = "--disable-socket --allow-unix-socket"
+markers = [
+    "slow: marks slow end-to-end tests",
+    "tex: marks tests that require a TeX toolchain",
+]
+testpaths = [
+    "pipeline/tests",
+]
+
+[tool.ruff]
+line-length = 100
+src = [
+    "pipeline/src",
+]
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "B",
+    "E",
+    "F",
+    "I",
+    "UP",
+]
