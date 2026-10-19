@@ -1,3 +1,4 @@
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -98,6 +99,15 @@ def _split_names(value: str) -> list[str]:
     return names
 
 
+_END_DOCUMENT = re.compile(r"^[^%\n]*?\\end\{document\}", re.MULTILINE)
+
+
+def _text_before_end_document(text: str) -> str:
+    # LaTeX ignores everything after an uncommented end of document
+    match = _END_DOCUMENT.search(text)
+    return text if match is None else text[: match.end()]
+
+
 class _Scanner:
     def __init__(self, bundle: Bundle):
         # Track state while walking source dependencies
@@ -145,6 +155,7 @@ class _Scanner:
                 f"Cannot read source file {relative_path}: {error}",
             )
             return
+        text = _text_before_end_document(text)
         walker = LatexWalker(text, latex_context=_latex_context(), tolerant_parsing=True)
         nodes, _, _ = walker.get_latex_nodes()
         self._scan_nodes(nodes, relative_path, text)

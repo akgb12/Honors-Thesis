@@ -200,3 +200,39 @@ def test_preflight_ignores_commented_dependencies(tmp_path: Path) -> None:
     assert result.missing_images == []
     assert result.missing_critical == []
     assert result.issues == []
+
+
+def test_preflight_ignores_text_after_end_document(tmp_path: Path) -> None:
+    # LaTeX never reads past the end of the document, so neither does pre-flight
+    _write(tmp_path / "beamer.cls")
+    _write(
+        tmp_path / "main.tex",
+        "\\documentclass{beamer}\n"
+        "\\begin{document}\n"
+        "Text\n"
+        "\\end{document}\n"
+        "Notes pasted later:\n"
+        "\\includegraphics[width=...]{...}\n"
+        "\\input{missing}\n",
+    )
+
+    result = _scan_project(tmp_path)
+
+    assert result.ok
+    assert result.missing_images == []
+    assert result.missing_critical == []
+
+
+def test_preflight_still_scans_after_a_commented_end_document(tmp_path: Path) -> None:
+    # A commented-out end of document does not stop the scan
+    _write(tmp_path / "beamer.cls")
+    _write(
+        tmp_path / "main.tex",
+        "\\documentclass{beamer}\n"
+        "\\begin{document}\n"
+        "% \\end{document}\n"
+        "\\includegraphics{real-missing}\n"
+        "\\end{document}\n",
+    )
+
+    assert _scan_project(tmp_path).missing_images == ["real-missing"]
