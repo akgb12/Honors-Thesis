@@ -6,6 +6,7 @@ import zipfile
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 from a11y_pipeline.adapters import get_adapter
@@ -18,7 +19,7 @@ from a11y_pipeline.models.client import ModelClient
 from a11y_pipeline.orchestration.effort import Effort
 from a11y_pipeline.orchestration.graph import run_pipeline
 from a11y_pipeline.orchestration.state import RunState
-from a11y_pipeline.render.pages import render_pages
+from a11y_pipeline.render.pages import page_size_points, render_pages
 from a11y_pipeline.render.pixeldiff import compare_pdf_pixels, visual_change_issues
 from a11y_pipeline.report.html import write_html_report
 from a11y_pipeline.report.stats import ReportStats, build_report_stats
@@ -231,9 +232,25 @@ def _materialize_completed_run(
         state.bundle,
         input_path,
         [PROMPT_VERSION],
+        _page_records(tagged_path, page_images, folder.root),
     )
     write_manifest(folder.manifest_path, manifest)
     return CompletedRun(folder=folder, state=state, stats=stats)
+
+
+def _page_records(tagged_path: Path, images: list[Path], root: Path) -> list[dict[str, Any]]:
+    # Pair each rendered page image with its size in PDF points
+    records: list[dict[str, Any]] = []
+    for index, (width, height) in enumerate(page_size_points(tagged_path)):
+        records.append(
+            {
+                "number": index + 1,
+                "image": images[index].relative_to(root).as_posix(),
+                "width_points": width,
+                "height_points": height,
+            }
+        )
+    return records
 
 
 def _selected_candidate(state: RunState) -> Candidate:

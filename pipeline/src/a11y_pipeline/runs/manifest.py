@@ -39,6 +39,7 @@ def build_manifest(
     bundle: Bundle,
     input_path: Path,
     prompt_versions: list[str],
+    pages: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     # Build the complete redacted run manifest
     files: list[dict[str, Any]] = []
@@ -80,6 +81,7 @@ def build_manifest(
         "stop_reason": state.stop_reason,
         "selected_candidate_id": state.selected_candidate_id,
         "totals": totals,
+        "pages": pages or [],
     }
     safe = redact_secret_fields(manifest)
     if not isinstance(safe, dict):

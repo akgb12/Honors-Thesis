@@ -2,6 +2,8 @@ import re
 import subprocess
 from pathlib import Path
 
+import pikepdf
+
 
 class RenderError(RuntimeError):
     pass
@@ -74,6 +76,16 @@ def render_page(
     if not output_path.is_file():
         raise RenderError("pdftoppm produced no page image")
     return output_path
+
+
+def page_size_points(pdf_path: Path) -> list[tuple[float, float]]:
+    # Read each page width and height in PDF points
+    sizes: list[tuple[float, float]] = []
+    with pikepdf.open(pdf_path) as pdf:
+        for page in pdf.pages:
+            box = page.MediaBox
+            sizes.append((float(box[2]) - float(box[0]), float(box[3]) - float(box[1])))
+    return sizes
 
 
 def _page_number(path: Path) -> int:

@@ -93,6 +93,12 @@ def test_a11y_run_materializes_every_m12_artifact(
     assert manifest["totals"]["candidates"] == 3
     assert manifest["totals"]["input_tokens"] == 24
     assert manifest["totals"]["output_tokens"] == 16
+    assert len(manifest["pages"]) == len(list((run_root / "pages").glob("*.png")))
+    first_page = manifest["pages"][0]
+    assert first_page["number"] == 1
+    assert (run_root / first_page["image"]).is_file()
+    assert first_page["width_points"] > 0
+    assert first_page["height_points"] > 0
 
     tagged = run_root / "output" / "tagged.pdf"
     checks = check_pdf(tagged, final_ir)
