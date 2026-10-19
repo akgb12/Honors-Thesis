@@ -138,3 +138,29 @@ def test_telemetry_records_failure_without_error_message(tmp_path) -> None:
     assert event["status"] == "error"
     assert event["error_type"] == "LookupError"
     assert "error_message" not in event
+
+
+class _BilledFailureClient:
+    def complete_structured(self, request: ModelRequest):
+        # Fail after the provider already billed the call
+        error = ValueError("unparseable output")
+        error.input_tokens = 1200  # type: ignore[attr-defined]
+        error.output_tokens = 300  # type: ignore[attr-defined]
+        error.cost_usd = 0.0069  # type: ignore[attr-defined]
+        raise error
+
+
+def test_telemetry_records_billed_usage_of_a_failed_call(tmp_path) -> None:
+    # A call that failed validation still cost money, so its usage is logged
+    path = tmp_path / "telemetry.jsonl"
+    client = TelemetryModelClient(_BilledFailureClient(), TelemetryWriter(path))
+
+    with pytest.raises(ValueError):
+        client.complete_structured(make_request())
+
+    event = json.loads(path.read_text(encoding="utf-8"))
+    assert event["status"] == "error"
+    assert event["input_tokens"] == 1200
+    assert event["output_tokens"] == 300
+    assert event["cost_usd"] == pytest.approx(0.0069)
+    assert "unparseable" not in json.dumps(event)

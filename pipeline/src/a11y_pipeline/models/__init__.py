@@ -1,4 +1,4 @@
-from a11y_pipeline.models.anthropic_client import AnthropicModelClient, MissingToolOutput
+from a11y_pipeline.models.anthropic_client import AnthropicModelClient, MissingStructuredOutput
 from a11y_pipeline.models.cache import CachedModelClient, DiskModelCache, cache_key
 from a11y_pipeline.models.client import (
     ModelClient,
@@ -20,6 +20,6 @@ __all__ = [
     "ModelPricing",
     "ModelRequest",
     "ModelResponse",
-    "MissingToolOutput",
+    "MissingStructuredOutput",
     "cache_key",
 ]

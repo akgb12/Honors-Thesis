@@ -77,6 +77,13 @@ class TelemetryModelClient:
         except Exception as error:
             event["status"] = "error"
             event["error_type"] = type(error).__name__
+            for name in ("input_tokens", "output_tokens"):
+                value = getattr(error, name, None)
+                if isinstance(value, int):
+                    event[name] = value
+            cost = getattr(error, "cost_usd", None)
+            if isinstance(cost, float):
+                event["cost_usd"] = cost
             self.writer.append(event)
             raise
         event["status"] = "ok"
