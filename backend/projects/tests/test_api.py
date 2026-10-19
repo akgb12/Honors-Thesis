@@ -312,6 +312,8 @@ def test_medium_run_review_and_artifact_downloads(client: Client) -> None:
     assert figure["source"]["file"] == "main.tex"
     assert figure["source"]["line_start"] <= figure["source"]["line_end"]
     assert figure["history"]
+    texts = [element["text"] for element in review_data["elements"] if element["text"]]
+    assert "Course Logistics" in texts
 
     listed_runs = client.get(f"/api/projects/{project_id}/runs")
     assert listed_runs.status_code == 200

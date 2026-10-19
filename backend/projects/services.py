@@ -142,6 +142,7 @@ def build_review(run: Run) -> dict[str, object]:
                 "anchor": render.get("anchor"),
                 "alt": accessibility.get("alt_text"),
                 "extended_description": accessibility.get("extended_description"),
+                "text": _text_excerpt(element.get("content", {})),
                 "source": _source_payload(element.get("source")),
                 "history": element.get("history", []),
                 "issues": issues_by_element.get(element_id, []),
@@ -161,6 +162,15 @@ def build_review(run: Run) -> dict[str, object]:
         "round_history": history,
         "issues": document_issues,
     }
+
+
+def _text_excerpt(content: dict[str, Any]) -> str | None:
+    # Return a short readable excerpt of an element's text or formula
+    value = content.get("text") or content.get("tex")
+    if not isinstance(value, str) or not value.strip():
+        return None
+    value = " ".join(value.split())
+    return value if len(value) <= 200 else f"{value[:199]}…"
 
 
 def _source_payload(source: dict[str, Any] | None) -> dict[str, object] | None:
