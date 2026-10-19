@@ -12,8 +12,8 @@ while IFS= read -r f; do
   case "$f" in
     .env.example|*/.env.example) ;;
     .env|.env.*|*/.env|*/.env.*) echo "BLOCKED (env file): $f"; fail=1 ;;
-    .onboarding/*|.cursor/*) echo "BLOCKED (onboarding material is never committed): $f"; fail=1 ;;
-    runs/*|.cache/*|storage/*|*/storage/*) echo "BLOCKED (runtime output): $f"; fail=1 ;;
+    .onboarding/*|.cursor/*|.claude/*|CLAUDE.local.md|*/CLAUDE.local.md) echo "BLOCKED (local agent/onboarding material is never committed): $f"; fail=1 ;;
+    runs/*|.cache/*|storage/*|*/runs/*|*/storage/*) echo "BLOCKED (runtime output): $f"; fail=1 ;;
     *.pem|*.key|*.p12|*.pfx|id_rsa*|id_ed25519*) echo "BLOCKED (key material): $f"; fail=1 ;;
   esac
 done <<< "$staged"
@@ -30,7 +30,7 @@ fi
 while IFS= read -r f; do
   case "$f" in
     *.env.example|*.ini|*.cfg|*.toml|*.yaml|*.yml|*.json)
-      if git diff --cached -U0 -- "$f" | grep -E '^\+[^+]' | grep -qE '^\+[[:space:]]*"?[A-Z0-9_]*(API_KEY|SECRET|SECRET_KEY|TOKEN|PASSWORD)"?[[:space:]]*[=:][[:space:]]*"?[^"[:space:]]+'; then
+      if git diff --cached -U0 -- "$f" | grep -E '^\+[^+]' | grep -qE '^\+[[:space:]]*"?[A-Z0-9_]*(API_KEY|SECRET|SECRET_KEY|TOKEN|PASSWORD|AWS_SECRET_ACCESS_KEY|AWS_ACCESS_KEY_ID)"?[[:space:]]*[=:][[:space:]]*"?[^"[:space:]]+'; then
         echo "BLOCKED: $f assigns a value to a secret-named variable"; fail=1
       fi ;;
   esac
