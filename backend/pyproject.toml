@@ -12,10 +12,13 @@ dependencies = [
     "dj-database-url",
     "psycopg[binary]",
     "python-dotenv",
+    "django-storages[s3]>=1.14.6",
+    "boto3>=1.43.115",
 ]
 
 [dependency-groups]
 dev = [
+    "moto[s3]>=5.2.4",
     "pytest-django",
 ]
 
