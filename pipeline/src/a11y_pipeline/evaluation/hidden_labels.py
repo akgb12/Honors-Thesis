@@ -198,57 +198,44 @@ def _measure_words(words: list[WordBox], luminance: Image.Image, dpi: int) -> li
 
 
 def _matching_word_runs(label: str, words: list[WordBox]) -> list[list[WordBox]]:
-    # Match a source label against extracted word runs
-    label_tokens = _tokens(label)
+    # Match a source label against extracted word runs, ignoring hyphens, spacing and line breaks
+    target = _squash(label)
     runs: list[list[WordBox]] = []
-    if not label_tokens:
+    if not target:
         return runs
-    for start, word in enumerate(words):
-        if normalize_text(word.text) != label_tokens[0]:
+    keys = [_squash(word.text) for word in words]
+    for start, first_key in enumerate(keys):
+        if not first_key or not target.startswith(first_key):
             continue
-        run = [word]
+        run = [words[start]]
+        accumulated = first_key
         current_index = start
-        matched = True
-        for token in label_tokens[1:]:
-            next_index = _next_matching_word(words, current_index, token, run[0])
+        while accumulated != target:
+            next_index = _next_continuing_word(keys, current_index, accumulated, target)
             if next_index is None:
-                matched = False
                 break
+            accumulated += keys[next_index]
             run.append(words[next_index])
             current_index = next_index
-        if matched:
+        if accumulated == target:
             runs.append(run)
     return runs
 
 
-def _next_matching_word(
-    words: list[WordBox],
+def _next_continuing_word(
+    keys: list[str],
     current_index: int,
-    token: str,
-    first_word: WordBox,
+    accumulated: str,
+    target: str,
 ) -> int | None:
-    # Find the next label word across overlapping extraction order
-    stop = min(len(words), current_index + 4)
+    # Find the next nearby word that continues the label, across wrapped lines
+    stop = min(len(keys), current_index + 4)
     for index in range(current_index + 1, stop):
-        candidate = words[index]
-        if normalize_text(candidate.text) == token and _same_line(first_word, candidate):
+        if keys[index] and target.startswith(accumulated + keys[index]):
             return index
     return None
 
 
-def _same_line(first: WordBox, second: WordBox) -> bool:
-    # Compare word centers using their rendered line height
-    first_center = (first.bbox[1] + first.bbox[3]) / 2
-    second_center = (second.bbox[1] + second.bbox[3]) / 2
-    first_height = first.bbox[3] - first.bbox[1]
-    second_height = second.bbox[3] - second.bbox[1]
-    tolerance = max(first_height, second_height)
-    return abs(first_center - second_center) <= tolerance
-
-
-def _tokens(value: str) -> list[str]:
-    # Split a label into normalized word tokens
-    tokens: list[str] = []
-    for token in re.findall(r"[\w]+", normalize_text(value)):
-        tokens.append(token)
-    return tokens
+def _squash(value: str) -> str:
+    # Keep only letters and digits so hyphenation and wrapping cannot break a match
+    return re.sub(r"[\W_]+", "", normalize_text(value))
