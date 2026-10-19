@@ -57,18 +57,28 @@ brew services start postgresql@18
 createdb honors_thesis
 ```
 
+Install the local S3-compatible object store (project files and run output live there, not
+on disk):
+
+```bash
+brew install seaweedfs
+bash scripts/dev_storage.sh start    # S3 on http://localhost:8333, data in storage/seaweedfs
+```
+
 Install every workspace package, copy the environment template if needed, and keep
-`MODEL_PROVIDER=fake` for local work:
+`MODEL_PROVIDER=fake` for local work. If `.env` already exists, add any new keys with
+`bash scripts/sync_env_keys.sh`:
 
 ```bash
 bash scripts/setup_uv_environment.sh
 cp .env.example .env
 ```
 
-Apply migrations and start the Django API:
+Apply migrations, create the bucket, and start the Django API:
 
 ```bash
 MODEL_PROVIDER=fake uv run python backend/manage.py migrate
+MODEL_PROVIDER=fake uv run python backend/manage.py ensure_bucket
 MODEL_PROVIDER=fake uv run python backend/manage.py runserver
 ```
 
@@ -96,6 +106,10 @@ MODEL_PROVIDER=fake uv run python backend/manage.py makemigrations --check --dry
 uv run ruff check .
 uv run ruff format --check .
 ```
+
+Moving to AWS S3 later is a `.env` change: empty `AWS_S3_ENDPOINT_URL`, real credentials and
+bucket, and `AWS_S3_ADDRESSING_STYLE=virtual`. Backend tests use a `moto` S3 mock, so they do
+not need SeaweedFS running.
 
 Real Anthropic runs require `MODEL_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, and positive
 `MODEL_INPUT_USD_PER_MTOK` and `MODEL_OUTPUT_USD_PER_MTOK` values in `.env`. The local test
