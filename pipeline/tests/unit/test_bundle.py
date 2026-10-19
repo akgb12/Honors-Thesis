@@ -10,6 +10,7 @@ from a11y_pipeline.bundle.mainfile import (
     MultipleMainFilesError,
     find_main_file,
     is_beamer_main_file,
+    list_beamer_main_files,
 )
 
 BEAMER_SOURCE = r"""
@@ -84,6 +85,19 @@ def test_find_main_file_lists_multiple_candidates(tmp_path: Path) -> None:
 
     assert "first.tex" in str(error.value)
     assert "second.tex" in str(error.value)
+
+
+def test_list_beamer_main_files_ignores_non_beamer_sources(tmp_path: Path) -> None:
+    # List only Beamer entry points, sorted, including nested ones
+    (tmp_path / "b.tex").write_text(BEAMER_SOURCE, encoding="utf-8")
+    (tmp_path / "notes.tex").write_text(
+        r"\documentclass{article}\begin{document}x\end{document}", encoding="utf-8"
+    )
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "a.tex").write_text(BEAMER_SOURCE, encoding="utf-8")
+
+    assert list_beamer_main_files(tmp_path) == ["b.tex", "sub/a.tex"]
+    assert list_beamer_main_files(tmp_path / "sub") == ["a.tex"]
 
 
 def test_find_main_file_accepts_valid_override(tmp_path: Path) -> None:

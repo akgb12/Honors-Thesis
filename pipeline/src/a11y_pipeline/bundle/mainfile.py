@@ -89,6 +89,15 @@ def _validated_override(root: Path, main_file: str) -> str:
     return candidate.relative_to(root_resolved).as_posix()
 
 
+def list_beamer_main_files(root: Path) -> list[str]:
+    # List every Beamer entry point in a bundle, sorted by path
+    candidates: list[str] = []
+    for path in sorted(root.rglob("*.tex")):
+        if path.is_file() and is_beamer_main_file(path):
+            candidates.append(path.relative_to(root).as_posix())
+    return candidates
+
+
 def find_main_file(root: Path, main_file: str | None = None) -> str:
     # Find the only Beamer entry point in a bundle
     if not root.is_dir():
@@ -96,11 +105,7 @@ def find_main_file(root: Path, main_file: str | None = None) -> str:
     if main_file is not None:
         return _validated_override(root, main_file)
 
-    candidates: list[str] = []
-    tex_paths = sorted(root.rglob("*.tex"))
-    for path in tex_paths:
-        if path.is_file() and is_beamer_main_file(path):
-            candidates.append(path.relative_to(root).as_posix())
+    candidates = list_beamer_main_files(root)
     if not candidates:
         raise MainFileNotFoundError("No Beamer main file found")
     if len(candidates) > 1:
