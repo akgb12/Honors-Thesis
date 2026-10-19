@@ -45,9 +45,14 @@ export function absoluteUrl(path: string): string {
   return path.startsWith('http') ? path : `${origin}${path}`
 }
 
+function encodePath(path: string): string {
+  return path.split('/').map(encodeURIComponent).join('/')
+}
+
 export const api = {
   listProjects: () => request<Project[]>('/projects'),
   createProject: (name: string) => request<Project>('/projects', json({ name })),
+  deleteProject: (id: string) => request<void>(`/projects/${id}`, { method: 'DELETE' }),
   getProject: (id: string) => request<Project>(`/projects/${id}`),
   uploadFiles: (id: string, files: File[]) => {
     const form = new FormData()
@@ -57,11 +62,20 @@ export const api = {
   putFile: (id: string, path: string, file: File) => {
     const form = new FormData()
     form.append('file', file)
-    return request<Project>(`/projects/${id}/files/${path}`, { method: 'PUT', body: form })
+    return request<Project>(`/projects/${id}/files/${encodePath(path)}`, {
+      method: 'PUT',
+      body: form,
+    })
   },
-  preflight: (id: string) => request<Preflight>(`/projects/${id}/preflight`),
+  removeFile: (id: string, path: string) =>
+    request<Project>(`/projects/${id}/files/${encodePath(path)}`, { method: 'DELETE' }),
+  preflight: (id: string, mainFile?: string | null) => {
+    const query = mainFile ? `?main_file=${encodeURIComponent(mainFile)}` : ''
+    return request<Preflight>(`/projects/${id}/preflight${query}`)
+  },
   listRuns: (id: string) => request<Run[]>(`/projects/${id}/runs`),
-  createRun: (id: string, payload: RunCreate) => request<Run>(`/projects/${id}/runs`, json(payload)),
+  createRun: (id: string, payload: RunCreate) =>
+    request<Run>(`/projects/${id}/runs`, json(payload)),
   getRun: (id: string) => request<Run>(`/runs/${id}`),
   getReview: (id: string) => request<Review>(`/runs/${id}/review`),
 }

@@ -1,9 +1,16 @@
+import { Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api'
-import ErrorNote from '../components/ErrorNote'
-import { errorMessage } from '../errors'
+import Dropzone from '../components/Dropzone'
+import FileList from '../components/FileList'
 import PreflightPanel from '../components/PreflightPanel'
+import RunForm from '../components/RunForm'
+import RunsList from '../components/RunsList'
+import StepCard from '../components/StepCard'
+import { Alert, Button, PageHeader, Skeleton } from '../components/ui'
+import { errorMessage } from '../errors'
+import { fileKind } from '../format'
 import type { Effort, Preflight, Project, Run } from '../types'
 
 export default function ProjectPage() {
@@ -11,57 +18,50 @@ export default function ProjectPage() {
   const navigate = useNavigate()
   const [project, setProject] = useState<Project | null>(null)
   const [preflight, setPreflight] = useState<Preflight | null>(null)
+  const [checking, setChecking] = useState(false)
+  const [mainFile, setMainFile] = useState<string | null>(null)
   const [runs, setRuns] = useState<Run[]>([])
-  const [effort, setEffort] = useState<Effort>('medium')
-  const [seedWeak, setSeedWeak] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [starting, setStarting] = useState(false)
 
-  const refreshPreflight = useCallback(async () => {
-    try {
-      setPreflight(await api.preflight(id))
-    } catch (e) {
-      setPreflight(null)
-      setError(errorMessage(e))
-    }
-  }, [id])
+  const runPreflight = useCallback(
+    async (main: string | null) => {
+      setChecking(true)
+      try {
+        setPreflight(await api.preflight(id, main))
+        setError(null)
+      } catch (e) {
+        setPreflight(null)
+        if (main) setMainFile(null)
+        setError(errorMessage(e))
+      } finally {
+        setChecking(false)
+      }
+    },
+    [id],
+  )
 
   useEffect(() => {
     api
       .getProject(id)
       .then((value) => {
         setProject(value)
-        if (value.files.length > 0) void refreshPreflight()
+        if (value.files.length > 0) void runPreflight(null)
       })
       .catch((e) => setError(errorMessage(e)))
     api
       .listRuns(id)
       .then(setRuns)
       .catch((e) => setError(errorMessage(e)))
-  }, [id, refreshPreflight])
+  }, [id, runPreflight])
 
-  async function upload(event: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files ?? [])
-    if (files.length === 0) return
+  async function mutate(action: () => Promise<Project>, main: string | null = mainFile) {
     setBusy(true)
     try {
-      setProject(await api.uploadFiles(id, files))
+      setProject(await action())
       setError(null)
-      await refreshPreflight()
-    } catch (e) {
-      setError(errorMessage(e))
-    } finally {
-      setBusy(false)
-      event.target.value = ''
-    }
-  }
-
-  async function fillSlot(path: string, file: File) {
-    setBusy(true)
-    try {
-      setProject(await api.putFile(id, path, file))
-      setError(null)
-      await refreshPreflight()
+      await runPreflight(main)
     } catch (e) {
       setError(errorMessage(e))
     } finally {
@@ -69,125 +69,150 @@ export default function ProjectPage() {
     }
   }
 
-  async function startRun(event: React.FormEvent) {
-    event.preventDefault()
-    setBusy(true)
+  function selectMain(file: string) {
+    setMainFile(file)
+    void runPreflight(file)
+  }
+
+  async function startRun(effort: Effort, seedWeak: string | null) {
+    setStarting(true)
     try {
       const run = await api.createRun(id, {
         effort,
-        seed_weak: seedWeak.trim() || null,
+        main_file: preflight?.main_file ?? mainFile,
+        seed_weak: seedWeak,
       })
       navigate(`/runs/${run.id}`)
     } catch (e) {
       setError(errorMessage(e))
-      setBusy(false)
+      setStarting(false)
     }
   }
 
-  if (!project) return error ? <ErrorNote message={error} /> : <p>Loading…</p>
+  async function deleteProject() {
+    if (!project || !window.confirm(`Delete “${project.name}” and all of its files and runs?`)) return
+    try {
+      await api.deleteProject(id)
+      navigate('/')
+    } catch (e) {
+      setError(errorMessage(e))
+    }
+  }
+
+  if (!project) {
+    return error ? (
+      <Alert tone="danger" title="Could not load this project">
+        {error}
+      </Alert>
+    ) : (
+      <div className="space-y-4">
+        <Skeleton className="h-10 w-72" />
+        <Skeleton className="h-56" />
+      </div>
+    )
+  }
+
+  const hasFiles = project.files.length > 0
+  const onlyPdfs = hasFiles && project.files.every((file) => fileKind(file.path) === 'pdf')
+  const ready = preflight?.ok === true
+  let disabledReason: string | null = null
+  if (!hasFiles) disabledReason = 'Upload your slides first.'
+  else if (!ready) disabledReason = 'Resolve the pre-flight items above first.'
 
   return (
-    <div className="space-y-6">
-      <div>
-        <Link to="/" className="text-sm text-blue-700 hover:underline">
-          ← Projects
-        </Link>
-        <h1 className="text-2xl font-semibold">{project.name}</h1>
-      </div>
-      <ErrorNote message={error} />
+    <div>
+      <PageHeader
+        breadcrumbs={[{ label: 'Projects', to: '/' }, { label: project.name }]}
+        title={project.name}
+        subtitle="Upload, check and run accessibility remediation on your Beamer slides."
+        actions={
+          <Button
+            variant="danger"
+            size="sm"
+            onClick={deleteProject}
+            icon={<Trash2 aria-hidden className="h-4 w-4" />}
+          >
+            Delete project
+          </Button>
+        }
+      />
 
-      <section className="space-y-2 rounded border border-gray-200 bg-white p-3">
-        <h2 className="font-semibold">Files</h2>
-        <label className="block text-sm">
-          Upload a project .zip or individual files
-          <input type="file" multiple onChange={upload} disabled={busy} className="mt-1 block" />
-        </label>
-        <ul className="text-sm text-gray-700">
-          {project.files.map((file) => (
-            <li key={file.id}>
-              {file.path} <span className="text-gray-400">({file.size} bytes)</span>
-            </li>
-          ))}
-          {project.files.length === 0 && <li className="text-gray-500">No files yet.</li>}
-        </ul>
-      </section>
-
-      {project.files.length > 0 && (
-        <PreflightPanel preflight={preflight} busy={busy} onFill={fillSlot} onRecheck={refreshPreflight} />
+      {error && (
+        <div className="mb-4">
+          <Alert tone="danger" title="Something went wrong">
+            {error}
+          </Alert>
+        </div>
       )}
 
-      <section className="rounded border border-gray-200 bg-white p-3">
-        <h2 className="mb-2 font-semibold">Start a run</h2>
-        <form onSubmit={startRun} className="flex flex-wrap items-end gap-3">
-          <label className="text-sm">
-            Effort
-            <select
-              value={effort}
-              onChange={(e) => setEffort(e.target.value as Effort)}
-              className="mt-1 block rounded border border-gray-300 px-2 py-1"
-            >
-              <option value="low">low</option>
-              <option value="medium">medium</option>
-              <option value="high">high</option>
-            </select>
-          </label>
-          <label className="text-sm">
-            Seed weak description (element ID, demo only)
-            <input
-              value={seedWeak}
-              onChange={(e) => setSeedWeak(e.target.value)}
-              placeholder="slide_04/figure_01"
-              className="mt-1 block w-64 rounded border border-gray-300 px-2 py-1"
-            />
-          </label>
-          <button
-            type="submit"
-            disabled={busy || !preflight?.ok}
-            className="rounded bg-blue-600 px-3 py-1 text-white disabled:opacity-50"
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="space-y-6">
+          <StepCard
+            number={1}
+            title="Upload your slides"
+            description="A .zip of the whole LaTeX project works best: .tex files, figures and style files."
+            done={hasFiles && !onlyPdfs}
           >
-            Start run
-          </button>
-        </form>
-      </section>
-
-      <section className="rounded border border-gray-200 bg-white p-3">
-        <h2 className="mb-2 font-semibold">Runs</h2>
-        <table className="w-full text-left text-sm">
-          <thead className="text-gray-500">
-            <tr>
-              <th className="py-1">Started</th>
-              <th>Status</th>
-              <th>Effort</th>
-              <th>A</th>
-              <th>F</th>
-              <th>Cost</th>
-            </tr>
-          </thead>
-          <tbody>
-            {runs.map((run) => (
-              <tr key={run.id} className="border-t border-gray-100">
-                <td className="py-1">
-                  <Link to={`/runs/${run.id}`} className="text-blue-700 hover:underline">
-                    {new Date(run.created_at).toLocaleString()}
-                  </Link>
-                </td>
-                <td>{run.status}</td>
-                <td>{run.effort}</td>
-                <td>{run.a_score?.toFixed(1) ?? '–'}</td>
-                <td>{run.f_score?.toFixed(1) ?? '–'}</td>
-                <td>${Number(run.cost_usd).toFixed(4)}</td>
-              </tr>
-            ))}
-            {runs.length === 0 && (
-              <tr>
-                <td colSpan={6} className="py-1 text-gray-500">
-                  No runs yet.
-                </td>
-              </tr>
+            {onlyPdfs && (
+              <div className="mb-4">
+                <Alert tone="warning" title="Only PDF files were uploaded">
+                  The pipeline needs the LaTeX source (.tex) of your Beamer slides. A PDF alone cannot
+                  be remediated. Remove it and upload the source project as a .zip.
+                </Alert>
+              </div>
             )}
-          </tbody>
-        </table>
-      </section>
+            <Dropzone
+              compact={hasFiles}
+              busy={busy}
+              onFiles={(files) => void mutate(() => api.uploadFiles(id, files), null)}
+            />
+            {hasFiles && (
+              <FileList
+                files={project.files}
+                disabled={busy}
+                onRemove={(path) => void mutate(() => api.removeFile(id, path))}
+              />
+            )}
+          </StepCard>
+
+          <StepCard
+            number={2}
+            title="Check the project"
+            description="We look for the main Beamer file and any missing images."
+            done={ready}
+          >
+            {hasFiles ? (
+              <PreflightPanel
+                preflight={preflight}
+                checking={checking}
+                busy={busy}
+                mainFile={mainFile}
+                onSelectMain={selectMain}
+                onFill={(path, file) => void mutate(() => api.putFile(id, path, file))}
+              />
+            ) : (
+              <p className="text-sm text-slate-500">Upload files in step 1 to run the check.</p>
+            )}
+          </StepCard>
+
+          <StepCard
+            number={3}
+            title="Run remediation"
+            description="Adds figure descriptions and builds a tagged PDF. Uses the fake model unless the server is configured otherwise."
+          >
+            <RunForm
+              disabled={!ready}
+              disabledReason={disabledReason}
+              loading={starting}
+              onStart={(effort, seed) => void startRun(effort, seed)}
+            />
+          </StepCard>
+        </div>
+
+        <div className="lg:sticky lg:top-20">
+          <RunsList runs={runs} />
+        </div>
+      </div>
     </div>
   )
 }

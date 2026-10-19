@@ -1,18 +1,23 @@
 import { useMemo, useState } from 'react'
-import { artifactUrl } from '../api'
-import { LEGEND_STATUSES, STATUS_LABELS, severityRank, statusColor } from '../status'
-import type { Review, ReviewElement, Run } from '../types'
+import { needsAttention, statusGroup } from '../status'
+import type { ElementStatus, Review, ReviewElement, Run } from '../types'
+import ElementSidebar from './ElementSidebar'
 import Inspector from './Inspector'
-import PageOverlay from './PageOverlay'
+import PageViewer from './PageViewer'
+import ReviewSummary from './ReviewSummary'
+import StatusFilter from './StatusFilter'
 
-interface Props {
-  run: Run
-  review: Review
-}
+const DEFAULT_HIDDEN: ElementStatus = 'done'
 
-export default function ReviewView({ run, review }: Props) {
+export default function ReviewView({ run, review }: { run: Run; review: Review }) {
   const [pageNumber, setPageNumber] = useState(1)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [visible, setVisible] = useState<Set<ElementStatus>>(() => {
+    const all = new Set<ElementStatus>()
+    for (const element of review.elements) all.add(statusGroup(element.status))
+    all.delete(DEFAULT_HIDDEN)
+    return all
+  })
 
   const elementsById = useMemo(() => {
     const map = new Map<string, ReviewElement>()
@@ -20,150 +25,100 @@ export default function ReviewView({ run, review }: Props) {
     return map
   }, [review])
 
-  const allIssues = useMemo(() => {
-    const issues = [...review.issues, ...review.elements.flatMap((element) => element.issues)]
-    return issues.sort((a, b) => severityRank(a.severity) - severityRank(b.severity))
+  const counts = useMemo(() => {
+    const result: Partial<Record<ElementStatus, number>> = {}
+    for (const element of review.elements) {
+      const group = statusGroup(element.status)
+      result[group] = (result[group] ?? 0) + 1
+    }
+    return result
   }, [review])
 
-  const page = review.pages.find((candidate) => candidate.number === pageNumber) ?? review.pages[0]
-  const pageElements = review.elements.filter((element) => element.pages.includes(pageNumber))
+  const flaggedPages = useMemo(() => {
+    const pages = new Set<number>()
+    for (const element of review.elements) {
+      if (needsAttention(element.status)) element.pages.forEach((page) => pages.add(page))
+    }
+    return pages
+  }, [review])
+
+  const attentionCount = review.elements.filter((element) => needsAttention(element.status)).length
+  const pageElements = review.elements.filter(
+    (element) => element.pages.includes(pageNumber) && visible.has(statusGroup(element.status)),
+  )
   const selected = selectedId ? (elementsById.get(selectedId) ?? null) : null
+
+  function toggle(status: ElementStatus) {
+    setVisible((current) => {
+      const next = new Set(current)
+      if (next.has(status)) next.delete(status)
+      else next.add(status)
+      return next
+    })
+  }
 
   function select(id: string) {
     setSelectedId(id)
     const element = elementsById.get(id)
-    if (element && element.pages.length > 0 && !element.pages.includes(pageNumber)) {
-      setPageNumber(element.pages[0])
+    if (element) {
+      // Unmapped elements fall back to the first page of their slide
+      const container = review.containers.find((item) => item.id === id.split('/')[0])
+      const pages = element.pages.length > 0 ? element.pages : (container?.rendered_pages ?? [])
+      if (pages.length > 0 && !pages.includes(pageNumber)) setPageNumber(pages[0])
+    }
+    // A selected element should always be visible on the slide
+    if (element) {
+      const group = statusGroup(element.status)
+      setVisible((current) => (current.has(group) ? current : new Set(current).add(group)))
     }
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded border border-gray-200 bg-white px-3 py-2 text-sm">
-        <span>
-          A (preliminary): <strong>{run.a_score?.toFixed(1) ?? '–'}</strong>
-        </span>
-        <span>
-          F (preliminary): <strong>{run.f_score?.toFixed(1) ?? '–'}</strong>
-        </span>
-        <span>Cost: ${Number(run.cost_usd).toFixed(4)}</span>
-        <span>
-          Tokens: {run.input_tokens} in / {run.output_tokens} out
-        </span>
-        <span>Stop reason: {run.stop_reason || '–'}</span>
-        <span className="flex gap-3">
-          <a className="text-blue-700 hover:underline" href={artifactUrl(run.id, 'output/tagged.pdf')}>
-            Tagged PDF
-          </a>
-          <a
-            className="text-blue-700 hover:underline"
-            href={artifactUrl(run.id, 'output/updated_project.zip')}
-          >
-            Updated project (.zip)
-          </a>
-          <a className="text-blue-700 hover:underline" href={artifactUrl(run.id, 'report.html')}>
-            report.html
-          </a>
-        </span>
+    <div className="space-y-5">
+      <ReviewSummary run={run} attentionCount={attentionCount} />
+
+      <div>
+        <h2 className="mb-2 text-sm font-semibold text-slate-700">Show on slides</h2>
+        <StatusFilter counts={counts} visible={visible} onToggle={toggle} />
       </div>
 
-      <ul className="flex flex-wrap gap-3 text-xs" aria-label="Status legend">
-        {LEGEND_STATUSES.map((status) => (
-          <li key={status} className="flex items-center gap-1">
-            <span
-              className="inline-block h-3 w-3 rounded-sm"
-              style={{ backgroundColor: statusColor(status) }}
-            />
-            {STATUS_LABELS[status]}
-          </li>
-        ))}
-      </ul>
-
-      <div className="grid gap-3 lg:grid-cols-[20rem_1fr_22rem]">
-        <aside className="max-h-[75vh] space-y-4 overflow-auto rounded border border-gray-200 bg-white p-3">
-          <section>
-            <h2 className="mb-1 font-semibold">Issues ({allIssues.length})</h2>
-            {allIssues.length === 0 && <p className="text-sm text-gray-500">No issues.</p>}
-            <ul className="space-y-1 text-sm">
-              {allIssues.map((issue, index) => (
-                <li key={`${issue.code}-${index}`}>
-                  <button
-                    className="text-left hover:underline"
-                    disabled={!issue.element_id}
-                    onClick={() => issue.element_id && select(issue.element_id)}
-                  >
-                    <span className="font-medium">{issue.severity}</span>: {issue.message}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-          <section>
-            <h2 className="mb-1 font-semibold">Elements by slide</h2>
-            <ul className="space-y-2 text-sm">
-              {review.containers.map((container) => (
-                <li key={container.id}>
-                  <div className="font-medium">{container.id}</div>
-                  <ul className="ml-3">
-                    {container.element_ids.map((id) => {
-                      const element = elementsById.get(id)
-                      if (!element) return null
-                      return (
-                        <li key={id}>
-                          <button
-                            onClick={() => select(id)}
-                            className={`flex items-center gap-1 text-left hover:underline ${
-                              id === selectedId ? 'font-semibold' : ''
-                            }`}
-                          >
-                            <span
-                              className="inline-block h-2 w-2 shrink-0 rounded-full"
-                              style={{ backgroundColor: statusColor(element.status) }}
-                            />
-                            {id.split('/').slice(1).join('/') || id}
-                          </button>
-                        </li>
-                      )
-                    })}
-                  </ul>
-                </li>
-              ))}
-            </ul>
-          </section>
+      <div className="grid gap-4 lg:h-[calc(100vh-9rem)] lg:min-h-[34rem] lg:grid-cols-[19rem_minmax(0,1fr)_23rem]">
+        <aside
+          aria-label="Elements and issues"
+          className="h-96 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm lg:h-auto"
+        >
+          <ElementSidebar
+            review={review}
+            elementsById={elementsById}
+            visible={visible}
+            pageNumber={pageNumber}
+            selectedId={selectedId}
+            onSelect={select}
+            onGoToPage={setPageNumber}
+            onShowAll={() => setVisible(new Set(Object.keys(counts) as ElementStatus[]))}
+          />
         </aside>
 
-        <section className="space-y-2 overflow-auto">
-          <div className="flex items-center gap-2 text-sm">
-            <button
-              className="rounded border border-gray-300 bg-white px-2 py-1 disabled:opacity-50"
-              disabled={pageNumber <= 1}
-              onClick={() => setPageNumber(pageNumber - 1)}
-            >
-              Previous
-            </button>
-            <span>
-              Page {pageNumber} of {review.pages.length}
-            </span>
-            <button
-              className="rounded border border-gray-300 bg-white px-2 py-1 disabled:opacity-50"
-              disabled={pageNumber >= review.pages.length}
-              onClick={() => setPageNumber(pageNumber + 1)}
-            >
-              Next
-            </button>
-          </div>
-          {page && (
-            <PageOverlay
-              page={page}
-              elements={pageElements}
-              selectedId={selectedId}
-              onSelect={select}
-            />
-          )}
+        <section
+          aria-label="Slide preview"
+          className="h-[36rem] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm lg:h-auto"
+        >
+          <PageViewer
+            pages={review.pages}
+            pageNumber={pageNumber}
+            elements={pageElements}
+            flaggedPages={flaggedPages}
+            selectedId={selectedId}
+            onSelect={select}
+            onPage={setPageNumber}
+          />
         </section>
 
-        <aside className="max-h-[75vh] overflow-auto rounded border border-gray-200 bg-white p-3">
-          <h2 className="mb-2 font-semibold">Inspector</h2>
+        <aside
+          aria-label="Inspector"
+          className="overflow-auto rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+        >
+          <h2 className="mb-3 text-sm font-semibold text-slate-700">Inspector</h2>
           <Inspector element={selected} />
         </aside>
       </div>

@@ -28,9 +28,16 @@ export interface PreflightIssue {
   dependency: string | null
 }
 
+export interface PreflightProblem {
+  code: 'no_tex_files' | 'no_beamer_main' | 'choose_main_file'
+  message: string
+}
+
 export interface Preflight {
   ok: boolean
-  main_file: string
+  main_file: string | null
+  main_candidates: string[]
+  problem: PreflightProblem | null
   missing_images: string[]
   critical_blockers: string[]
   issues: PreflightIssue[]
@@ -66,6 +73,7 @@ export interface RunCreate {
 export type ElementStatus =
   | 'done'
   | 'deterministic'
+  | 'needs_description'
   | 'model_generated'
   | 'needs_review'
   | 'failed'
@@ -98,6 +106,7 @@ export interface ReviewElement {
   id: string
   type: string
   role: string | null
+  text: string | null
   status: ElementStatus
   pages: number[]
   bbox: Bbox | null

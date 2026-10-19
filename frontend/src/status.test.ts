@@ -1,10 +1,32 @@
 import { describe, expect, it } from 'vitest'
-import { isFinished, severityRank, statusColor } from './status'
+import {
+  isFinished,
+  needsAttention,
+  severityRank,
+  statusColor,
+  statusGroup,
+  statusLabel,
+} from './status'
 
 describe('status helpers', () => {
-  it('uses a neutral color for unknown statuses', () => {
+  it('uses a neutral style for unknown statuses', () => {
     expect(statusColor('model_generated')).toBe('#2563eb')
-    expect(statusColor('something_else')).toBe('#6b7280')
+    expect(statusColor('something_else')).toBe('#64748b')
+    expect(statusLabel('needs_description')).toBe('Needs description')
+    expect(statusLabel('something_else')).toBe('Unknown')
+  })
+
+  it('folds deterministic into done', () => {
+    expect(statusGroup('deterministic')).toBe('done')
+    expect(statusGroup('failed')).toBe('failed')
+  })
+
+  it('flags elements that need attention', () => {
+    expect(needsAttention('needs_review')).toBe(true)
+    expect(needsAttention('needs_description')).toBe(true)
+    expect(needsAttention('not_handled')).toBe(true)
+    expect(needsAttention('done')).toBe(false)
+    expect(needsAttention('model_generated')).toBe(false)
   })
 
   it('ranks errors before warnings before info', () => {
