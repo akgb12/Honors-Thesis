@@ -142,6 +142,16 @@ def delete_project_files(project: Project) -> None:
             default_storage.delete(storage_path)
 
 
+def delete_project_file(project: Project, relative_path: str) -> bool:
+    # Delete one project input from storage and the database
+    safe_path = validate_relative_path(relative_path)
+    storage_path = project_storage_path(project.id, safe_path)
+    if default_storage.exists(storage_path):
+        default_storage.delete(storage_path)
+    deleted, _ = ProjectFile.objects.filter(project=project, path=safe_path).delete()
+    return deleted > 0
+
+
 def upload_run_folder(run_id: object, folder: Path, skip: tuple[str, ...] = ()) -> int:
     # Upload one finished run folder to runs/<run_id>/ and return the file count
     root = folder.resolve()

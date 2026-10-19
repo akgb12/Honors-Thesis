@@ -188,6 +188,74 @@ def test_missing_file_put_flow(client: Client) -> None:
     assert ready.json()["critical_blockers"] == []
 
 
+BEAMER_SOURCE = (
+    b"\\documentclass{beamer}\n\\begin{document}\n"
+    b"\\begin{frame}{A}\nText\n\\end{frame}\n\\end{document}\n"
+)
+
+
+def _upload(client: Client, project_id: str, files: dict[str, bytes]):
+    # Upload named files to a project through the API
+    return client.post(
+        f"/api/projects/{project_id}/upload",
+        {"files": [SimpleUploadedFile(name, body) for name, body in files.items()]},
+    )
+
+
+@pytest.mark.django_db
+def test_preflight_explains_a_pdf_only_project(client: Client) -> None:
+    # A PDF alone has no source to remediate and says so
+    project = _create_project(client)
+    assert _upload(client, project["id"], {"slides.pdf": b"%PDF-1.4"}).status_code == 200
+    result = client.get(f"/api/projects/{project['id']}/preflight").json()
+    assert result["ok"] is False
+    assert result["main_file"] is None
+    assert result["problem"]["code"] == "no_tex_files"
+    assert "PDF" in result["problem"]["message"]
+
+
+@pytest.mark.django_db
+def test_preflight_rejects_tex_without_beamer(client: Client) -> None:
+    # Plain LaTeX documents are not Beamer presentations
+    project = _create_project(client)
+    source = b"\\documentclass{article}\n\\begin{document}x\\end{document}\n"
+    _upload(client, project["id"], {"notes.tex": source})
+    result = client.get(f"/api/projects/{project['id']}/preflight").json()
+    assert result["problem"]["code"] == "no_beamer_main"
+
+
+@pytest.mark.django_db
+def test_preflight_asks_for_a_main_file_when_several_exist(client: Client) -> None:
+    # Offer every Beamer candidate and accept an explicit choice
+    project = _create_project(client)
+    _upload(client, project["id"], {"b.tex": BEAMER_SOURCE, "a.tex": BEAMER_SOURCE})
+    result = client.get(f"/api/projects/{project['id']}/preflight").json()
+    assert result["ok"] is False
+    assert result["problem"]["code"] == "choose_main_file"
+    assert result["main_candidates"] == ["a.tex", "b.tex"]
+
+    chosen = client.get(f"/api/projects/{project['id']}/preflight?main_file=b.tex").json()
+    assert chosen["ok"] is True
+    assert chosen["main_file"] == "b.tex"
+    assert chosen["problem"] is None
+
+    invalid = client.get(f"/api/projects/{project['id']}/preflight?main_file=missing.tex")
+    assert invalid.status_code == 400
+
+
+@pytest.mark.django_db
+def test_remove_project_file(client: Client) -> None:
+    # Remove one file from storage and the database
+    project = _create_project(client)
+    _upload(client, project["id"], {"keep.tex": b"k", "drop.pdf": b"d"})
+    response = client.delete(f"/api/projects/{project['id']}/files/drop.pdf")
+    assert response.status_code == 200
+    assert [item["path"] for item in response.json()["files"]] == ["keep.tex"]
+    assert _stored_keys() == [f"projects/{project['id']}/files/keep.tex"]
+    assert client.delete(f"/api/projects/{project['id']}/files/drop.pdf").status_code == 404
+    assert client.delete(f"/api/projects/{project['id']}/files/..%2Fx").status_code in {400, 404}
+
+
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.tex
 @pytest.mark.slow

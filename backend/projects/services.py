@@ -1,10 +1,11 @@
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from django.core.files.storage import default_storage
 
 from a11y_pipeline.adapters import get_adapter
 from a11y_pipeline.bundle.bundle import Bundle
+from a11y_pipeline.bundle.mainfile import list_beamer_main_files
 from projects.models import Project, Run
 from projects.storage import (
     list_run_files,
@@ -26,6 +27,11 @@ def project_preflight(project: Project, main_file: str | None = None) -> dict[st
     with scratch_dir("preflight") as scratch:
         bundle_root = scratch / "bundle"
         materialize_project(project, bundle_root)
+        candidates = list_beamer_main_files(bundle_root)
+        if main_file is None:
+            problem = _main_file_problem(bundle_root, candidates)
+            if problem is not None:
+                return _blocked_preflight(problem, candidates)
         bundle = Bundle.from_path(bundle_root, main_file)
         result = get_adapter("tex-beamer").preflight(bundle)
         issues: list[dict[str, object]] = []
@@ -43,10 +49,53 @@ def project_preflight(project: Project, main_file: str | None = None) -> dict[st
         return {
             "ok": result.ok and not result.missing_images,
             "main_file": bundle.main_file,
+            "main_candidates": candidates,
+            "problem": None,
             "missing_images": result.missing_images,
             "critical_blockers": result.missing_critical,
             "issues": issues,
         }
+
+
+def _main_file_problem(root: Path, candidates: list[str]) -> dict[str, str] | None:
+    # Explain why no single Beamer main file can be chosen yet
+    if not any(root.rglob("*.tex")):
+        return {
+            "code": "no_tex_files",
+            "message": (
+                "No LaTeX (.tex) files were found. Upload the Beamer source of your slides "
+                "(a .zip of the project works best); a PDF alone cannot be remediated."
+            ),
+        }
+    if not candidates:
+        return {
+            "code": "no_beamer_main",
+            "message": (
+                "None of the .tex files is a Beamer presentation "
+                "(it needs \\documentclass{beamer} and a document body)."
+            ),
+        }
+    if len(candidates) > 1:
+        return {
+            "code": "choose_main_file",
+            "message": (
+                f"This project has {len(candidates)} Beamer files. Choose which one to process."
+            ),
+        }
+    return None
+
+
+def _blocked_preflight(problem: dict[str, str], candidates: list[str]) -> dict[str, object]:
+    # Build a preflight result for a project that cannot run yet
+    return {
+        "ok": False,
+        "main_file": None,
+        "main_candidates": candidates,
+        "problem": problem,
+        "missing_images": [],
+        "critical_blockers": [],
+        "issues": [],
+    }
 
 
 def artifact_key(run: Run, relative_path: str) -> str:

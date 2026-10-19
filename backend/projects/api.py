@@ -21,6 +21,7 @@ from projects.schemas import (
 from projects.services import artifact_key, build_review, project_preflight
 from projects.storage import (
     delete_prefix,
+    delete_project_file,
     delete_project_files,
     save_missing_slot,
     upload_project_files,
@@ -156,6 +157,22 @@ def put_project_file(
     except (OSError, ValueError) as error:
         raise HttpError(400, str(error)) from error
     return _project_payload(project)
+
+
+@router.delete(
+    "/projects/{project_id}/files/{path:path}",
+    response={200: ProjectSchema, 400: ErrorSchema, 404: ErrorSchema},
+)
+def remove_project_file(request, project_id: UUID, path: str):
+    # Remove one uploaded file from a project
+    project = get_object_or_404(Project, id=project_id)
+    try:
+        removed = delete_project_file(project, path)
+    except ValueError as error:
+        raise HttpError(400, str(error)) from error
+    if not removed:
+        raise HttpError(404, "File was not found in this project")
+    return _project_payload(Project.objects.prefetch_related("files").get(id=project_id))
 
 
 @router.get(
