@@ -1,6 +1,6 @@
 import re
 
-from a11y_pipeline.evaluation.concepts import NUMBER_WORDS, normalize_text
+from a11y_pipeline.evaluation.concepts import NUMBER_WORDS, loosen_text, normalize_text
 from a11y_pipeline.ir.models import DocumentIR, Element, Issue
 
 
@@ -30,7 +30,9 @@ def figure_contradiction_veto(
                     message="Figure alternative text states a conflicting sequence count",
                     details={"expected": expected, "stated": count, "stem": parts[2]},
                 )
-    unknown = _unknown_quoted_label(alt_text, visible_labels)
+    # Without any extracted labels there is nothing to compare quotes against
+    can_compare = bool(visible_labels) or bool(element.fidelity.excluded_concepts)
+    unknown = _unknown_quoted_label(alt_text, visible_labels) if can_compare else None
     if unknown is not None:
         return Issue(
             element_id=element.id,
@@ -138,7 +140,7 @@ def _unknown_quoted_label(text: str, visible_labels: list[str]) -> str | None:
     # Find a quoted label absent from visible source labels
     visible: set[str] = set()
     for label in visible_labels:
-        visible.add(normalize_text(label))
+        visible.add(loosen_text(normalize_text(label)))
     pattern = re.compile(r"""["“”']([^"“”']+)["“”']""")
     for match in pattern.finditer(text):
         quoted = re.sub(r"\s+", " ", match.group(1)).strip()
@@ -146,7 +148,7 @@ def _unknown_quoted_label(text: str, visible_labels: list[str]) -> str | None:
             continue
         if re.search(r"[A-Za-z0-9]", quoted) is None:
             continue
-        if normalize_text(quoted) not in visible:
+        if loosen_text(normalize_text(quoted)) not in visible:
             return quoted
     return None
 

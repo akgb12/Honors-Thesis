@@ -253,12 +253,18 @@ def _concept_matches_normalized(normalized_text: str, concept: str) -> bool:
     return _contains_count(normalized_text, count) and _contains_stem(normalized_text, noun)
 
 
+def loosen_text(value: str) -> str:
+    # Ignore punctuation and spacing differences, keeping hyphens inside words
+    return re.sub(r"\s+", " ", re.sub(r"[^\w\s-]+", " ", value)).strip()
+
+
 def _contains_phrase(normalized_text: str, phrase: str) -> bool:
-    # Match a normalized phrase at word boundaries
+    # Match a phrase at word boundaries, ignoring punctuation differences
+    phrase = loosen_text(phrase)
     if not phrase:
         return False
     pattern = rf"(?<![\w-]){re.escape(phrase)}(?![\w-])"
-    return re.search(pattern, normalized_text) is not None
+    return re.search(pattern, loosen_text(normalized_text)) is not None
 
 
 def _contains_count(normalized_text: str, count: int) -> bool:
@@ -316,6 +322,7 @@ def _clean_tikz_label(value: str) -> str:
         value,
     )
     cleaned = cleaned.replace("{", " ").replace("}", " ")
+    cleaned = re.sub(r"\\\\(?:\s*\[[^\]]*\])?", " ", cleaned)
     cleaned = cleaned.replace(r"\ ", " ")
     return re.sub(r"\s+", " ", cleaned).strip()
 
