@@ -6,7 +6,7 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from a11y_pipeline.config import Settings
-from a11y_pipeline.models.anthropic_client import AnthropicModelClient
+from a11y_pipeline.models.anthropic_client import AnthropicModelClient, MissingToolOutput
 from a11y_pipeline.models.client import ModelMessage, ModelRequest
 
 
@@ -15,13 +15,13 @@ class Description(BaseModel):
     decorative: bool = False
 
 
-def make_settings() -> Settings:
+def make_settings(model: str = "test-model") -> Settings:
     # Build complete isolated Anthropic settings for mocked tests
     return Settings(
         _env_file=None,
         model_provider="anthropic",
         anthropic_api_key="local-test-value",
-        generator_model="test-model",
+        generator_model=model,
         model_input_usd_per_mtok=3.0,
         model_output_usd_per_mtok=15.0,
     )
@@ -70,7 +70,7 @@ def anthropic_response(tool_input: dict[str, object]) -> dict[str, object]:
     }
 
 
-def test_anthropic_client_forces_tool_and_sends_png_block(respx_mock) -> None:
+def test_anthropic_client_requests_tool_and_sends_png_block(respx_mock) -> None:
     # Verify the SDK request and parse mocked tool input
     route = respx_mock.post("https://api.anthropic.com/v1/messages").mock(
         return_value=httpx.Response(
@@ -87,7 +87,10 @@ def test_anthropic_client_forces_tool_and_sends_png_block(respx_mock) -> None:
     assert route.called
     sent = json.loads(route.calls[0].request.content)
     assert sent["model"] == "test-model"
-    assert sent["tool_choice"] == {"type": "tool", "name": "submit"}
+    assert sent["tool_choice"] == {"type": "auto"}
+    assert "submit tool exactly once" in sent["system"]
+    assert sent["system"].startswith("Describe figures accessibly")
+    assert "thinking" not in sent
     assert sent["tools"][0]["name"] == "submit"
     assert sent["tools"][0]["input_schema"]["required"] == ["alt_text"]
     blocks = sent["messages"][0]["content"]
@@ -99,6 +102,42 @@ def test_anthropic_client_forces_tool_and_sends_png_block(respx_mock) -> None:
     assert response.input_tokens == 100
     assert response.output_tokens == 20
     assert response.cost_usd == pytest.approx(0.0006)
+
+
+def test_anthropic_client_disables_thinking_for_sonnet_five_five(respx_mock) -> None:
+    # Keep the small output budget for the answer on models that think by default
+    route = respx_mock.post("https://api.anthropic.com/v1/messages").mock(
+        return_value=httpx.Response(200, json=anthropic_response({"alt_text": "A diagram."}))
+    )
+    client = AnthropicModelClient(make_settings("claude-sonnet-5-5"))
+
+    client.complete_structured(make_request())
+
+    sent = json.loads(route.calls[0].request.content)
+    assert sent["model"] == "claude-sonnet-5-5"
+    assert sent["thinking"] == {"type": "between_tools"}
+    assert sent["tool_choice"] == {"type": "auto"}
+
+
+def test_anthropic_client_reports_stop_reason_when_tool_is_missing(respx_mock) -> None:
+    # A text-only reply (for example after hitting max tokens) names its stop reason
+    body = {
+        "id": "msg_test",
+        "type": "message",
+        "role": "assistant",
+        "model": "test-model",
+        "content": [{"type": "text", "text": "cut off"}],
+        "stop_reason": "max_tokens",
+        "stop_sequence": None,
+        "usage": {"input_tokens": 10, "output_tokens": 5},
+    }
+    respx_mock.post("https://api.anthropic.com/v1/messages").mock(
+        return_value=httpx.Response(200, json=body)
+    )
+    client = AnthropicModelClient(make_settings())
+
+    with pytest.raises(MissingToolOutput, match="max_tokens"):
+        client.complete_structured(make_request())
 
 
 def test_anthropic_client_rejects_malformed_tool_input(respx_mock) -> None:
