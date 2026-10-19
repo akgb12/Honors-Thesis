@@ -1,9 +1,9 @@
 import os
-import shutil
-from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Annotated
 from uuid import UUID
 
+from django.core.files.storage import default_storage
 from django.http import FileResponse, HttpResponse
 from django.shortcuts import get_object_or_404
 from ninja import File, Router, Status, UploadedFile
@@ -18,8 +18,9 @@ from projects.schemas import (
     RunCreateSchema,
     RunSchema,
 )
-from projects.services import artifact_path, build_review, project_preflight, run_root
+from projects.services import artifact_key, build_review, project_preflight
 from projects.storage import (
+    delete_prefix,
     delete_project_files,
     save_missing_slot,
     upload_project_files,
@@ -65,7 +66,7 @@ def _run_payload(run: Run) -> dict[str, object]:
         "created_at": run.created_at,
         "started_at": run.started_at,
         "finished_at": run.finished_at,
-        "run_dir": run.run_dir,
+        "storage_prefix": run.storage_prefix,
         "stop_reason": run.stop_reason,
         "a_score": run.a_score,
         "f_score": run.f_score,
@@ -114,10 +115,8 @@ def delete_project(request, project_id: UUID):
     project = get_object_or_404(Project.objects.prefetch_related("files", "runs"), id=project_id)
     delete_project_files(project)
     for run in project.runs.all():
-        if run.run_dir:
-            root = run_root(run)
-            if root.exists():
-                shutil.rmtree(root)
+        if run.storage_prefix:
+            delete_prefix(run.storage_prefix)
     project.delete()
     return HttpResponse(status=204)
 
@@ -187,13 +186,15 @@ def create_run(request, project_id: UUID, payload: RunCreateSchema):
         except ValueError as error:
             raise HttpError(400, str(error)) from error
     provider = os.getenv("MODEL_PROVIDER", "fake").strip().lower() or "fake"
-    run = Run.objects.create(
+    run = Run(
         project=project,
         effort=payload.effort,
         main_file=payload.main_file or "",
         seed_weak=payload.seed_weak,
         model_provider=provider,
     )
+    run.storage_prefix = f"runs/{run.id}"
+    run.save()
     run_pipeline_task.enqueue(str(run.id))
     run.refresh_from_db()
     return Status(202, _run_payload(run))
@@ -223,9 +224,11 @@ def download_artifact(request, run_id: UUID, relpath: str):
     # Download one approved artifact from a completed run
     run = get_object_or_404(Run, id=run_id)
     try:
-        path = artifact_path(run, relpath)
+        key = artifact_key(run, relpath)
     except ValueError as error:
         raise HttpError(400, str(error)) from error
     except FileNotFoundError as error:
         raise HttpError(404, "Artifact was not found") from error
-    return FileResponse(path.open("rb"), as_attachment=True, filename=Path(path).name)
+    name = PurePosixPath(key).name
+    inline = key.endswith(".png")
+    return FileResponse(default_storage.open(key, "rb"), as_attachment=not inline, filename=name)

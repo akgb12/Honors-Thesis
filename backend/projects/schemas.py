@@ -48,7 +48,7 @@ class RunSchema(Schema):
     created_at: datetime
     started_at: datetime | None
     finished_at: datetime | None
-    run_dir: str
+    storage_prefix: str
     stop_reason: str
     a_score: float | None
     f_score: float | None

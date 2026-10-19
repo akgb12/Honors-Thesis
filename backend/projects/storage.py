@@ -1,9 +1,13 @@
 import hashlib
+import json
 import shutil
-import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import BinaryIO
+from typing import Any, BinaryIO
+from uuid import uuid4
 
+from django.conf import settings
 from django.core.files import File
 from django.core.files.storage import default_storage
 from django.db import transaction
@@ -20,6 +24,8 @@ def validate_relative_path(value: str) -> str:
     # Validate one relative POSIX storage path
     if not value or "\x00" in value or "\\" in value:
         raise UnsafePathError("Path must be a nonempty relative POSIX path")
+    if value.startswith("/") or value.endswith("/") or "//" in value:
+        raise UnsafePathError("Path must not contain empty segments")
     posix_path = PurePosixPath(value)
     windows_path = PureWindowsPath(value)
     if posix_path.is_absolute() or windows_path.is_absolute() or windows_path.drive:
@@ -36,6 +42,23 @@ def project_storage_path(project_id: object, relative_path: str) -> str:
     # Build a validated project storage name
     safe_path = validate_relative_path(relative_path)
     return f"projects/{project_id}/files/{safe_path}"
+
+
+def run_storage_key(run_id: object, relative_path: str) -> str:
+    # Build a validated run output storage name
+    safe_path = validate_relative_path(relative_path)
+    return f"runs/{run_id}/{safe_path}"
+
+
+@contextmanager
+def scratch_dir(name: str) -> Iterator[Path]:
+    # Provide a local working folder that is always removed afterwards
+    root = Path(settings.SCRATCH_DIR) / f"{name}-{uuid4().hex[:8]}"
+    root.mkdir(parents=True, exist_ok=False)
+    try:
+        yield root
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
 
 
 def save_project_file(
@@ -119,10 +142,58 @@ def delete_project_files(project: Project) -> None:
             default_storage.delete(storage_path)
 
 
+def upload_run_folder(run_id: object, folder: Path, skip: tuple[str, ...] = ()) -> int:
+    # Upload one finished run folder to runs/<run_id>/ and return the file count
+    root = folder.resolve()
+    uploaded = 0
+    for source in sorted(root.rglob("*")):
+        if not source.is_file():
+            continue
+        relative = source.relative_to(root).as_posix()
+        if any(relative == name or relative.startswith(f"{name}/") for name in skip):
+            continue
+        key = run_storage_key(run_id, relative)
+        if default_storage.exists(key):
+            default_storage.delete(key)
+        with source.open("rb") as stream:
+            saved = default_storage.save(key, File(stream))
+        if saved != key:
+            default_storage.delete(saved)
+            raise RuntimeError("Storage changed the requested run path")
+        uploaded += 1
+    return uploaded
+
+
+def run_file_exists(prefix: str, relative_path: str) -> bool:
+    # Check for one stored run file by its relative path
+    return default_storage.exists(f"{prefix}/{validate_relative_path(relative_path)}")
+
+
+def read_run_json(prefix: str, relative_path: str) -> Any:
+    # Read and decode one JSON file stored with a run
+    key = f"{prefix}/{validate_relative_path(relative_path)}"
+    with default_storage.open(key, "rb") as stored:
+        return json.loads(stored.read().decode("utf-8"))
+
+
+def list_run_files(prefix: str, folder: str) -> list[str]:
+    # List file names directly inside one stored run folder
+    _, names = default_storage.listdir(f"{prefix}/{validate_relative_path(folder)}")
+    return sorted(names)
+
+
+def delete_prefix(prefix: str) -> None:
+    # Delete every stored object below a prefix
+    directories, names = default_storage.listdir(prefix)
+    for name in names:
+        default_storage.delete(f"{prefix}/{name}")
+    for directory in directories:
+        delete_prefix(f"{prefix}/{directory}")
+
+
 def _upload_zip(project: Project, upload: object) -> list[ProjectFile]:
     # Extract one archive with the pipeline safety checks
-    with tempfile.TemporaryDirectory(prefix="backend-upload-") as temporary:
-        root = Path(temporary)
+    with scratch_dir("upload") as root:
         archive_path = root / "upload.zip"
         with archive_path.open("wb") as archive:
             for chunk in upload.chunks():

@@ -1,14 +1,18 @@
-import json
-import tempfile
-from pathlib import Path, PurePosixPath
+from pathlib import PurePosixPath
+from typing import Any
 
-import pikepdf
-from django.conf import settings
+from django.core.files.storage import default_storage
 
 from a11y_pipeline.adapters import get_adapter
 from a11y_pipeline.bundle.bundle import Bundle
 from projects.models import Project, Run
-from projects.storage import materialize_project, validate_relative_path
+from projects.storage import (
+    list_run_files,
+    materialize_project,
+    read_run_json,
+    scratch_dir,
+    validate_relative_path,
+)
 
 DOWNLOADABLE_ARTIFACTS = {
     "output/tagged.pdf",
@@ -19,8 +23,8 @@ DOWNLOADABLE_ARTIFACTS = {
 
 def project_preflight(project: Project, main_file: str | None = None) -> dict[str, object]:
     # Run pipeline preflight against files from Django storage
-    with tempfile.TemporaryDirectory(prefix="backend-preflight-") as temporary:
-        bundle_root = Path(temporary) / "bundle"
+    with scratch_dir("preflight") as scratch:
+        bundle_root = scratch / "bundle"
         materialize_project(project, bundle_root)
         bundle = Bundle.from_path(bundle_root, main_file)
         result = get_adapter("tex-beamer").preflight(bundle)
@@ -45,18 +49,8 @@ def project_preflight(project: Project, main_file: str | None = None) -> dict[st
         }
 
 
-def run_root(run: Run) -> Path:
-    # Resolve a run directory without allowing storage escapes
-    relative = validate_relative_path(run.run_dir)
-    media_root = Path(settings.MEDIA_ROOT).resolve()
-    root = (media_root / relative).resolve()
-    if not root.is_relative_to(media_root):
-        raise ValueError("Run directory escapes media storage")
-    return root
-
-
-def artifact_path(run: Run, relative_path: str) -> Path:
-    # Resolve one approved downloadable run artifact
+def artifact_key(run: Run, relative_path: str) -> str:
+    # Resolve one approved downloadable run artifact to its storage key
     relative = validate_relative_path(relative_path)
     allowed = relative in DOWNLOADABLE_ARTIFACTS
     path = PurePosixPath(relative)
@@ -64,19 +58,18 @@ def artifact_path(run: Run, relative_path: str) -> Path:
         allowed = True
     if not allowed:
         raise ValueError("Artifact path is not downloadable")
-    root = run_root(run)
-    candidate = (root / relative).resolve()
-    if not candidate.is_relative_to(root):
-        raise ValueError("Artifact path escapes the run directory")
-    if not candidate.is_file():
+    if not run.storage_prefix:
         raise FileNotFoundError(relative)
-    return candidate
+    key = f"{validate_relative_path(run.storage_prefix)}/{relative}"
+    if not default_storage.exists(key):
+        raise FileNotFoundError(relative)
+    return key
 
 
 def build_review(run: Run) -> dict[str, object]:
-    # Build the review payload from final run artifacts
-    root = run_root(run)
-    ir = json.loads((root / "ir_final.json").read_text(encoding="utf-8"))
+    # Build the review payload from final run artifacts in storage
+    prefix = validate_relative_path(run.storage_prefix)
+    ir = read_run_json(prefix, "ir_final.json")
     issues_by_element: dict[str, list[dict[str, object]]] = {}
     document_issues: list[dict[str, object]] = []
     for issue in ir.get("issues", []):
@@ -104,14 +97,14 @@ def build_review(run: Run) -> dict[str, object]:
             }
         )
     history: list[dict[str, object]] = []
-    for candidate_path in sorted((root / "candidates").glob("*.json")):
-        history.append(json.loads(candidate_path.read_text(encoding="utf-8")))
-    pages = _page_payloads(run, root)
+    for name in list_run_files(prefix, "candidates"):
+        if name.endswith(".json"):
+            history.append(read_run_json(prefix, f"candidates/{name}"))
     return {
         "run_id": str(run.id),
         "containers": ir["containers"],
         "elements": elements,
-        "pages": pages,
+        "pages": _page_payloads(run, read_run_json(prefix, "manifest.json")),
         "scores": {"accessibility": run.a_score, "fidelity": run.f_score},
         "stop_reason": run.stop_reason,
         "round_history": history,
@@ -119,20 +112,16 @@ def build_review(run: Run) -> dict[str, object]:
     }
 
 
-def _page_payloads(run: Run, root: Path) -> list[dict[str, object]]:
-    # Read page dimensions and pair them with rendered images
-    images = sorted((root / "pages").glob("*.png"))
+def _page_payloads(run: Run, manifest: dict[str, Any]) -> list[dict[str, object]]:
+    # Pair manifest page sizes with artifact URLs for the rendered images
     pages: list[dict[str, object]] = []
-    with pikepdf.open(root / "output" / "tagged.pdf") as pdf:
-        for index, page in enumerate(pdf.pages):
-            media_box = page.MediaBox
-            image_name = images[index].name
-            pages.append(
-                {
-                    "number": index + 1,
-                    "image_url": (f"/api/runs/{run.id}/artifact/pages/{image_name}"),
-                    "width_points": float(media_box[2]) - float(media_box[0]),
-                    "height_points": float(media_box[3]) - float(media_box[1]),
-                }
-            )
+    for page in manifest.get("pages", []):
+        pages.append(
+            {
+                "number": page["number"],
+                "image_url": f"/api/runs/{run.id}/artifact/{page['image']}",
+                "width_points": page["width_points"],
+                "height_points": page["height_points"],
+            }
+        )
     return pages

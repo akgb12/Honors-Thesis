@@ -3,12 +3,16 @@ import json
 import zipfile
 from pathlib import Path
 
+import boto3
 import pytest
+from django.conf import settings as django_settings
 from django.core.files.storage import default_storage, storages
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management import call_command
 from django.test import Client
 from django.test.client import BOUNDARY, MULTIPART_CONTENT, encode_multipart
 from django.utils.functional import empty
+from moto import mock_aws
 
 from projects.models import Project, Run
 from projects.storage import UnsafePathError, validate_relative_path
@@ -18,12 +22,16 @@ LECTURE_SAMPLE = REPOSITORY_ROOT / "pipeline" / "tests" / "fixtures" / "lecture_
 
 
 @pytest.fixture(autouse=True)
-def isolated_media(settings, tmp_path: Path):
-    # Isolate Django storage for every backend test
-    settings.MEDIA_ROOT = tmp_path / "media"
-    storages._storages = {}
-    default_storage._wrapped = empty
-    yield
+def s3_storage(settings, tmp_path: Path):
+    # Back every backend test with a fresh moto S3 bucket and scratch folder
+    settings.SCRATCH_DIR = tmp_path / "scratch"
+    with mock_aws():
+        boto3.client("s3", region_name="us-east-1").create_bucket(
+            Bucket=django_settings.TEST_BUCKET_NAME
+        )
+        storages._storages = {}
+        default_storage._wrapped = empty
+        yield
     storages._storages = {}
     default_storage._wrapped = empty
 
@@ -129,7 +137,15 @@ def test_zip_upload_uses_safe_extraction(client: Client) -> None:
 
 def test_uploaded_paths_reject_absolute_and_traversal() -> None:
     # Reject unsafe project and artifact style paths
-    unsafe = ["/tmp/main.tex", "../main.tex", "figs/../../main.tex", r"C:\main.tex"]
+    unsafe = [
+        "/tmp/main.tex",
+        "../main.tex",
+        "figs/../../main.tex",
+        r"C:\main.tex",
+        "figs//a.png",
+        "figs/",
+        "",
+    ]
     for value in unsafe:
         with pytest.raises(UnsafePathError):
             validate_relative_path(value)
@@ -209,7 +225,7 @@ def test_medium_run_review_and_artifact_downloads(client: Client) -> None:
     run_id = queued.json()["id"]
     run = Run.objects.get(id=run_id)
     assert run.status == Run.Status.SUCCEEDED
-    assert run.run_dir == f"runs/{run.id}"
+    assert run.storage_prefix == f"runs/{run.id}"
     assert run.model_provider == "fake"
     assert run.input_tokens == 24
     assert run.output_tokens == 16
@@ -240,3 +256,95 @@ def test_medium_run_review_and_artifact_downloads(client: Client) -> None:
 
     traversal = client.get(f"/api/runs/{run_id}/artifact/%2E%2E/manifest.json")
     assert traversal.status_code in {400, 404}
+
+    keys = _stored_keys()
+    assert f"runs/{run_id}/output/tagged.pdf" in keys
+    assert f"runs/{run_id}/manifest.json" in keys
+    assert f"runs/{run_id}/ir_final.json" in keys
+    assert not any(key.startswith(f"runs/{run_id}/work/original/") for key in keys)
+    assert not any(key.startswith(f"runs/{run_id}/work/marked/") for key in keys)
+    assert not list((Path(django_settings.SCRATCH_DIR)).glob("*"))
+    page = review_data["pages"][0]
+    assert page["width_points"] > 0
+    assert page["height_points"] > 0
+
+    deleted = client.delete(f"/api/projects/{project_id}")
+    assert deleted.status_code == 204
+    assert _stored_keys() == []
+
+
+def _stored_keys() -> list[str]:
+    # List every object key in the test bucket
+    client = boto3.client("s3", region_name="us-east-1")
+    keys: list[str] = []
+    paginator = client.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=django_settings.TEST_BUCKET_NAME):
+        for item in page.get("Contents", []):
+            keys.append(item["Key"])
+    return sorted(keys)
+
+
+@pytest.mark.django_db
+def test_project_files_are_stored_under_plain_keys(client: Client) -> None:
+    # Store project files at projects/<id>/files/<path> in the bucket
+    project = _create_project(client)
+    client.post(
+        f"/api/projects/{project['id']}/upload",
+        {"files": [SimpleUploadedFile("main.tex", b"x")]},
+    )
+    assert _stored_keys() == [f"projects/{project['id']}/files/main.tex"]
+
+
+@pytest.mark.django_db
+def test_artifact_rejects_traversal_and_unlisted_paths(client: Client) -> None:
+    # Only approved relative artifact paths are served
+    project = Project.objects.create(name="p")
+    run = Run.objects.create(
+        project=project,
+        effort="low",
+        model_provider="fake",
+        storage_prefix="runs/abc",
+    )
+    for path in ["manifest.json", "output/../manifest.json", "work/original/main.pdf"]:
+        response = client.get(f"/api/runs/{run.id}/artifact/{path}")
+        assert response.status_code in {400, 404}
+    missing = client.get(f"/api/runs/{run.id}/artifact/report.html")
+    assert missing.status_code == 404
+
+
+def test_ensure_bucket_is_idempotent(settings) -> None:
+    # Create a missing bucket once and leave an existing one alone
+    options = {**settings.STORAGES["default"]["OPTIONS"], "bucket_name": "another-bucket"}
+    settings.STORAGES = {
+        **settings.STORAGES,
+        "default": {**settings.STORAGES["default"], "OPTIONS": options},
+    }
+    first = io.StringIO()
+    call_command("ensure_bucket", stdout=first)
+    second = io.StringIO()
+    call_command("ensure_bucket", stdout=second)
+    assert "Created bucket another-bucket" in first.getvalue()
+    assert "already exists" in second.getvalue()
+
+
+def test_backend_code_follows_storage_rules() -> None:
+    # Backend code never opens stored files by path or uses presigned URLs
+    forbidden = [
+        "generate_presigned",
+        "presigned",
+        "FileSystemStorage",
+        "MEDIA_ROOT",
+        "default_storage.path(",
+        'querystring_auth": True',
+        "put_object_acl",
+        "default_acl",
+    ]
+    backend_root = Path(__file__).parents[2]
+    for source in list((backend_root / "projects").rglob("*.py")) + [
+        backend_root / "config" / "settings.py"
+    ]:
+        if source.name == "test_api.py":
+            continue
+        text = source.read_text(encoding="utf-8")
+        for word in forbidden:
+            assert word not in text, f"{word} found in {source.name}"

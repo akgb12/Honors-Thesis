@@ -1,10 +1,7 @@
 import json
-import shutil
-import tempfile
 from decimal import Decimal
 from pathlib import Path
 
-from django.conf import settings as django_settings
 from django.tasks import task
 from django.utils import timezone
 
@@ -12,28 +9,24 @@ from a11y_pipeline.cli import _model_client
 from a11y_pipeline.config import Settings
 from a11y_pipeline.runs.folder import RunBlockedError, run_to_folder
 from projects.models import Run
-from projects.storage import materialize_project
+from projects.storage import materialize_project, scratch_dir, upload_run_folder
+
+# Source copies are large and reproducible from the project files, so they stay out of storage
+SKIPPED_RUN_FOLDERS = ("work/original", "work/marked")
 
 
 @task
 def run_pipeline_task(run_id: str) -> str:
-    # Run one queued project through the complete pipeline
+    # Run one queued project through the complete pipeline in a scratch folder
     run = Run.objects.select_related("project").get(id=run_id)
     run.status = Run.Status.RUNNING
     run.started_at = timezone.now()
     run.error_message = ""
     run.save(update_fields=["status", "started_at", "error_message"])
-    media_root = Path(django_settings.MEDIA_ROOT).resolve()
-    runs_root = media_root / "runs"
-    runs_root.mkdir(parents=True, exist_ok=True)
-    target = runs_root / str(run.id)
     try:
-        if target.exists():
-            raise RuntimeError("Run output directory already exists")
-        with tempfile.TemporaryDirectory(prefix="backend-run-", dir=runs_root) as temporary:
-            temporary_root = Path(temporary)
-            bundle_root = temporary_root / "bundle"
-            output_root = temporary_root / "output"
+        with scratch_dir(f"run-{run.id}") as scratch:
+            bundle_root = scratch / "bundle"
+            output_root = scratch / "output"
             materialize_project(run.project, bundle_root)
             pipeline_settings = Settings()
             client = _model_client(pipeline_settings)
@@ -48,11 +41,11 @@ def run_pipeline_task(run_id: str) -> str:
                     output_root=output_root,
                 )
             except RunBlockedError as error:
-                shutil.move(str(error.folder.root), target)
-                _update_run_from_manifest(run, target, Run.Status.BLOCKED)
+                upload_run_folder(run.id, error.folder.root, SKIPPED_RUN_FOLDERS)
+                _update_run_from_manifest(run, error.folder.root, Run.Status.BLOCKED)
                 return str(run.id)
-            shutil.move(str(completed.folder.root), target)
-            _update_completed_run(run, target, completed)
+            upload_run_folder(run.id, completed.folder.root, SKIPPED_RUN_FOLDERS)
+            _update_completed_run(run, completed.folder.root, completed)
     except Exception as error:
         run.status = Run.Status.FAILED
         run.finished_at = timezone.now()
@@ -62,13 +55,13 @@ def run_pipeline_task(run_id: str) -> str:
     return str(run.id)
 
 
-def _update_completed_run(run: Run, target: Path, completed: object) -> None:
+def _update_completed_run(run: Run, root: Path, completed: object) -> None:
     # Persist scores and manifest totals from a completed run
-    manifest = _read_manifest(target)
+    manifest = _read_manifest(root)
     totals = manifest.get("totals", {})
     run.status = Run.Status.SUCCEEDED
     run.finished_at = timezone.now()
-    run.run_dir = f"runs/{run.id}"
+    run.storage_prefix = f"runs/{run.id}"
     run.main_file = manifest.get("inputs", {}).get("main_file", run.main_file)
     run.model_provider = manifest.get("model", {}).get("provider", run.model_provider)
     run.stop_reason = manifest.get("stop_reason") or ""
@@ -80,13 +73,13 @@ def _update_completed_run(run: Run, target: Path, completed: object) -> None:
     run.save()
 
 
-def _update_run_from_manifest(run: Run, target: Path, status: str) -> None:
+def _update_run_from_manifest(run: Run, root: Path, status: str) -> None:
     # Persist safe metadata from a blocked pipeline run
-    manifest = _read_manifest(target)
+    manifest = _read_manifest(root)
     totals = manifest.get("totals", {})
     run.status = status
     run.finished_at = timezone.now()
-    run.run_dir = f"runs/{run.id}"
+    run.storage_prefix = f"runs/{run.id}"
     run.main_file = manifest.get("inputs", {}).get("main_file", run.main_file)
     run.model_provider = manifest.get("model", {}).get("provider", run.model_provider)
     run.stop_reason = manifest.get("stop_reason") or "preflight_blocked"

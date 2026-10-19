@@ -54,7 +54,7 @@ class Run(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
-    run_dir = models.CharField(max_length=1024, blank=True)
+    storage_prefix = models.CharField(max_length=1024, blank=True)
     stop_reason = models.CharField(max_length=64, blank=True)
     a_score = models.FloatField(null=True, blank=True)
     f_score = models.FloatField(null=True, blank=True)
