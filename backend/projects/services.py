@@ -93,6 +93,8 @@ def build_review(run: Run) -> dict[str, object]:
                 "anchor": render.get("anchor"),
                 "alt": accessibility.get("alt_text"),
                 "extended_description": accessibility.get("extended_description"),
+                "source": _source_payload(element.get("source")),
+                "history": element.get("history", []),
                 "issues": issues_by_element.get(element_id, []),
             }
         )
@@ -109,6 +111,17 @@ def build_review(run: Run) -> dict[str, object]:
         "stop_reason": run.stop_reason,
         "round_history": history,
         "issues": document_issues,
+    }
+
+
+def _source_payload(source: dict[str, Any] | None) -> dict[str, object] | None:
+    # Keep only the source location fields the review view needs
+    if not source:
+        return None
+    return {
+        "file": source.get("file"),
+        "line_start": source.get("line_start"),
+        "line_end": source.get("line_end"),
     }
 
 

@@ -241,6 +241,13 @@ def test_medium_run_review_and_artifact_downloads(client: Client) -> None:
     assert figure is not None
     assert figure["status"] == "model_generated"
     assert figure["alt"]
+    assert figure["source"]["file"] == "main.tex"
+    assert figure["source"]["line_start"] <= figure["source"]["line_end"]
+    assert figure["history"]
+
+    listed_runs = client.get(f"/api/projects/{project_id}/runs")
+    assert listed_runs.status_code == 200
+    assert [item["id"] for item in listed_runs.json()] == [run_id]
     assert review_data["pages"]
     assert review_data["round_history"]
 

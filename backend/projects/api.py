@@ -173,6 +173,16 @@ def preflight_project(request, project_id: UUID, main_file: str | None = None):
         raise HttpError(400, str(error)) from error
 
 
+@router.get(
+    "/projects/{project_id}/runs",
+    response={200: list[RunSchema], 404: ErrorSchema},
+)
+def list_runs(request, project_id: UUID):
+    # List one project's runs, newest first
+    project = get_object_or_404(Project, id=project_id)
+    return [_run_payload(run) for run in project.runs.all()]
+
+
 @router.post(
     "/projects/{project_id}/runs",
     response={202: RunSchema, 400: ErrorSchema, 404: ErrorSchema},
