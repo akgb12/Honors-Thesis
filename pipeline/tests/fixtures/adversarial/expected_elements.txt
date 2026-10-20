@@ -1,0 +1,38 @@
+# Golden IR summary for fixtures/adversarial/deck.tex
+#
+# Produced by:  a11y parse tests/fixtures/adversarial --summary
+# (parser M3 + IR builder M4). The test compares this file exactly, ignoring lines that
+# start with '#'. One line per container or element, in reading order:
+#
+#   <id> | <semantic_type> | <line_start>-<line_end> | <details>
+#
+# <details> is a comma-separated list of key=value pairs in this order where present:
+#   role, text, tex, inline, subtype, asset, status, labels, overlay, ordered,
+#   options, pauses, macro, args, user_defined
+# Text values: whitespace collapsed; TeX escapes resolved (\% -> %, \$ -> $); inline math
+# kept verbatim with its $ delimiters. Commas inside values are written as \, .
+# This deck is parser-only: figs/regression does not exist on purpose.
+#
+slide_01 | slide | 9-11 |
+slide_01/title_page_01 | title_page | 10-10 | role=Sect
+slide_01/title_page_01/document_title_01 | document_title | 5-5 | role=H1, text=Intro to Machine Learning
+slide_01/title_page_01/paragraph_01 | paragraph | 6-6 | role=P, text=Dr. Example
+slide_02 | slide | 16-26 | options=fragile
+slide_02/heading_01 | heading | 16-16 | role=H2, text=Course Logistics
+slide_02/list_01 | list | 17-25 | role=L, ordered=false
+slide_02/list_01/list_item_01 | list_item | 18-18 | role=LI, text=Grading: 40% exams\, 60% projects
+slide_02/list_01/list_item_02 | list_item | 19-19 | role=LI, text=Late work costs $5 per day, overlay=2-
+slide_02/list_01/list_item_03 | list_item | 20-24 | role=LI, text=Office hours:
+slide_02/list_01/list_item_03/list_01 | list | 21-24 | role=L, ordered=true
+slide_02/list_01/list_item_03/list_01/list_item_01 | list_item | 22-22 | role=LI, text=Monday
+slide_02/list_01/list_item_03/list_01/list_item_02 | list_item | 23-23 | role=LI, text=Thursday
+slide_03 | slide | 28-36 | pauses=1
+slide_03/heading_01 | heading | 29-29 | role=H2, text=Linear Models
+slide_03/paragraph_01 | paragraph | 30-30 | role=P, text=A model predicts $\hat{y} = w^\top x + b$ from features.
+slide_03/paragraph_01/formula_01 | formula | 30-30 | role=Formula, tex=\hat{y} = w^\top x + b, inline=true
+slide_03/formula_01 | formula | 32-34 | role=Formula, tex=L(w) = \frac{1}{n}\sum_{i=1}^{n} (y_i - w^\top x_i)^2, inline=false
+slide_03/figure_01 | figure | 35-35 | role=Figure, subtype=image, asset=figs/regression, status=missing_asset
+slide_04 | slide | 38-44 |
+slide_04/heading_01 | heading | 38-38 | role=H2, text=Cross-Validation
+slide_04/figure_01 | figure | 39-42 | role=Figure, subtype=diagram, status=needs_description, labels=Test
+slide_04/unknown_01 | unknown | 43-43 | status=not_handled, macro=myplot, args=results.csv, user_defined=true

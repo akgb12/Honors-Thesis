@@ -1,0 +1,49 @@
+# ---- secrets ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ---- runtime output ----
+/runs/
+storage/
+.cache/
+
+# ---- Python ----
+.venv
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+build/
+dist/
+
+# ---- Node / frontend ----
+node_modules/
+frontend/dist/
+frontend/.env
+!frontend/.env.example
+
+# ---- TeX build files (fixtures' sources are committed, build output is not) ----
+*.aux
+*.log
+*.nav
+*.out
+*.snm
+*.toc
+*.vrb
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.pdf
+!pipeline/tests/fixtures/**/*.pdf
+
+# ---- OS / editors ----
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,43 @@
+# Golden IR summary for fixtures/lecture_sample/main.tex
+#
+# Hand verified against every source span and visible value in main.tex.
+# The test compares this file exactly while ignoring lines that start with '#'.
+#
+slide_01 | slide | 15-17 |
+slide_01/title_page_01 | title_page | 16-16 | role=Sect
+slide_01/title_page_01/document_title_01 | document_title | 7-7 | role=H1, text=Introduction to Machine Learning
+slide_01/title_page_01/paragraph_01 | paragraph | 8-8 | role=P, text=Lecture 1
+slide_01/title_page_01/paragraph_02 | paragraph | 9-9 | role=P, text=Dr. Example
+slide_01/title_page_01/paragraph_03 | paragraph | 10-10 | role=P, text=Texas A&M University
+slide_01/title_page_01/paragraph_04 | paragraph | 11-11 | role=P, text=Fall 2026
+slide_02 | slide | 22-32 |
+slide_02/heading_01 | heading | 22-22 | role=H2, text=Course Logistics
+slide_02/list_01 | list | 23-31 | role=L, ordered=false
+slide_02/list_01/list_item_01 | list_item | 24-24 | role=LI, text=Grading: 40% exams\, 60% projects
+slide_02/list_01/list_item_02 | list_item | 25-25 | role=LI, text=Late work costs $5 per day, overlay=2-
+slide_02/list_01/list_item_03 | list_item | 26-30 | role=LI, text=Office hours:, overlay=2-
+slide_02/list_01/list_item_03/list_01 | list | 27-30 | role=L, ordered=true
+slide_02/list_01/list_item_03/list_01/list_item_01 | list_item | 28-28 | role=LI, text=Monday
+slide_02/list_01/list_item_03/list_01/list_item_02 | list_item | 29-29 | role=LI, text=Thursday
+slide_03 | slide | 34-44 | pauses=1
+slide_03/heading_01 | heading | 35-35 | role=H2, text=Linear Models
+slide_03/paragraph_01 | paragraph | 36-36 | role=P, text=A model predicts $\hat{y} = w^\top x + b$ from the features.
+slide_03/paragraph_01/formula_01 | formula | 36-36 | role=Formula, tex=\hat{y} = w^\top x + b, inline=true
+slide_03/formula_01 | formula | 38-40 | role=Formula, tex=L(w) = \frac{1}{n}\sum_{i=1}^{n} \left(y_i - w^\top x_i\right)^2, inline=false
+slide_03/figure_01 | figure | 42-42 | role=Figure, subtype=image, asset=figs/regression, status=needs_description
+slide_04 | slide | 46-68 | pauses=1
+slide_04/heading_01 | heading | 46-46 | role=H2, text=Cross-Validation
+slide_04/list_01 | list | 47-50 | role=L, ordered=false
+slide_04/list_01/list_item_01 | list_item | 48-48 | role=LI, text=Split the data into $k$ equal folds
+slide_04/list_01/list_item_01/formula_01 | formula | 48-48 | role=Formula, tex=k, inline=true
+slide_04/list_01/list_item_02 | list_item | 49-49 | role=LI, text=Train on $k-1$ folds\, test on the remaining one
+slide_04/list_01/list_item_02/formula_01 | formula | 49-49 | role=Formula, tex=k-1, inline=true
+slide_04/figure_01 | figure | 53-63 | role=Figure, subtype=diagram, status=needs_description, labels=Fold \n\, Test
+slide_04/paragraph_01 | paragraph | 65-66 | role=P, text=One fold is used for testing; the others are used for training.
+slide_05 | slide | 70-73 |
+slide_05/heading_01 | heading | 70-70 | role=H2, text=Overlays That Replace Content
+slide_05/paragraph_01 | paragraph | 71-71 | role=P, text=Step one: collect the data., overlay=1
+slide_05/paragraph_02 | paragraph | 72-72 | role=P, text=Step two: clean the data., overlay=2
+slide_06 | slide | 75-77 |
+slide_06/heading_01 | heading | 75-75 | role=H2, text=A Custom Macro
+slide_06/unknown_01 | unknown | 76-76 | status=not_handled, macro=myplot, args=results.csv, user_defined=true
