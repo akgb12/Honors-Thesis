@@ -94,3 +94,45 @@ def test_prompt_states_the_same_alt_text_budget_the_checker_enforces() -> None:
     prompt = (Path(capabilities.__file__).parent / "prompts" / f"{PROMPT_VERSION}.md").read_text()
     assert f"at most {ALT_BASE_WORD_LIMIT} words" in prompt
     assert "extended_description" in prompt
+
+
+def test_coverage_counts_the_extended_description_that_screen_readers_receive() -> None:
+    # The tagged PDF delivers alt text plus the extended description, so both are scored
+    from a11y_pipeline.evaluation.concepts import delivered_description, evaluate_coverage
+
+    figure = _figure("Flow from input to output.", ["label:New input e.g., image"])
+    figure.accessibility.extended_description = (
+        "Bottom row: New input (e.g., image) leads to Output."
+    )
+
+    assert delivered_description(figure) == (
+        "Flow from input to output.\n\nBottom row: New input (e.g., image) leads to Output."
+    )
+    assert (
+        evaluate_coverage(delivered_description(figure), figure.fidelity.required_concepts).coverage
+        == 1.0
+    )
+    assert (
+        evaluate_coverage(figure.accessibility.alt_text, figure.fidelity.required_concepts).coverage
+        == 0.0
+    )
+
+
+def test_a_made_up_label_in_the_extended_description_is_vetoed() -> None:
+    # Unverifiable quotes are contradictions wherever the screen reader would read them
+    figure = _figure("A flow diagram.", [])
+    figure.accessibility.extended_description = 'The last box is labeled "Profit margin".'
+    veto = figure_contradiction_veto(figure, ["Input", "Output"])
+    assert veto is not None
+    assert veto.details["quoted_label"] == "Profit margin"
+
+
+def test_partial_count_in_the_extended_description_is_not_a_contradiction() -> None:
+    # "The remaining four folds" is correct for five folds with one held out
+    figure = _figure(
+        "Five-fold cross-validation with the third fold held out.", ["sequence:5:Fold"]
+    )
+    figure.accessibility.extended_description = "The remaining four folds are training folds."
+    assert (
+        figure_contradiction_veto(figure, ["Fold 1", "Fold 2", "Fold 4", "Fold 5", "Test"]) is None
+    )

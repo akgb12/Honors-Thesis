@@ -1,6 +1,11 @@
 import re
 
-from a11y_pipeline.evaluation.concepts import NUMBER_WORDS, loosen_text, normalize_text
+from a11y_pipeline.evaluation.concepts import (
+    NUMBER_WORDS,
+    delivered_description,
+    loosen_text,
+    normalize_text,
+)
 from a11y_pipeline.ir.models import DocumentIR, Element, Issue
 
 
@@ -9,7 +14,10 @@ def figure_contradiction_veto(
     visible_labels: list[str],
 ) -> Issue | None:
     # Detect supported source contradictions in figure text
+    # The count check is a coarse pattern match that mis-fires on partial counts such as
+    # "the remaining four folds", so it stays on the alt text; quoted labels use all delivered text
     alt_text = element.accessibility.alt_text or ""
+    delivered_text = delivered_description(element)
     for concept in element.fidelity.required_concepts:
         if not concept.startswith("sequence:"):
             continue
@@ -32,7 +40,7 @@ def figure_contradiction_veto(
                 )
     # Without any extracted labels there is nothing to compare quotes against
     can_compare = bool(visible_labels) or bool(element.fidelity.excluded_concepts)
-    unknown = _unknown_quoted_label(alt_text, visible_labels) if can_compare else None
+    unknown = _unknown_quoted_label(delivered_text, visible_labels) if can_compare else None
     if unknown is not None:
         return Issue(
             element_id=element.id,

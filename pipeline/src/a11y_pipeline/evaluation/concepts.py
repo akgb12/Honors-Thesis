@@ -162,6 +162,12 @@ def apply_concepts(element: Element, concepts: ConceptSet) -> Element:
     return updated
 
 
+def delivered_description(element: Element) -> str:
+    # The text a screen reader receives: alt text followed by the extended description
+    parts = [element.accessibility.alt_text, element.accessibility.extended_description]
+    return "\n\n".join(part.strip() for part in parts if part and part.strip())
+
+
 def evaluate_coverage(alt_text: str | None, required_concepts: list[str]) -> CoverageResult:
     # Measure deterministic concept coverage
     if not required_concepts:

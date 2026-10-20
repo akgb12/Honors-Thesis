@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from a11y_pipeline.evaluation.concepts import evaluate_coverage
+from a11y_pipeline.evaluation.concepts import delivered_description, evaluate_coverage
 from a11y_pipeline.evaluation.scores import figure_accessibility_score
 from a11y_pipeline.evaluation.signals import evaluate_signals
 from a11y_pipeline.evaluation.vetoes import evaluate_vetoes
@@ -33,7 +33,7 @@ def evaluate_candidate(
         if element.semantic_type != "figure":
             continue
         coverage = evaluate_coverage(
-            element.accessibility.alt_text,
+            delivered_description(element),
             element.fidelity.required_concepts,
         )
         signals = evaluate_signals(
