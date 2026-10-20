@@ -136,3 +136,20 @@ def test_partial_count_in_the_extended_description_is_not_a_contradiction() -> N
     assert (
         figure_contradiction_veto(figure, ["Fold 1", "Fold 2", "Fold 4", "Fold 5", "Test"]) is None
     )
+
+
+def test_quoting_part_of_a_real_label_is_not_a_contradiction() -> None:
+    # "Output" refers to the visible label "Output e.g., cat/dog"
+    element = _figure("A flow diagram.", [])
+    element.accessibility.extended_description = "An arrow points to 'Output' and then to 'Write'."
+    visible = ["Output e.g., cat/dog", "Write a program"]
+    assert figure_contradiction_veto(element, visible) is None
+
+
+def test_partial_words_and_invented_labels_are_still_vetoed() -> None:
+    # Only whole words of a real label count, and invented labels remain contradictions
+    visible = ["Output e.g., cat/dog", "Write a program"]
+    partial = _figure('The box "Out" is shown.', [])
+    assert figure_contradiction_veto(partial, visible) is not None
+    invented = _figure('The box "Profit margin" is shown.', [])
+    assert figure_contradiction_veto(invented, visible) is not None

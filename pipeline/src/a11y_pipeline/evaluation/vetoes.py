@@ -156,9 +156,15 @@ def _unknown_quoted_label(text: str, visible_labels: list[str]) -> str | None:
             continue
         if re.search(r"[A-Za-z0-9]", quoted) is None:
             continue
-        if loosen_text(normalize_text(quoted)) not in visible:
+        if not _is_known_label(loosen_text(normalize_text(quoted)), visible):
             return quoted
     return None
+
+
+def _is_known_label(quoted: str, visible: set[str]) -> bool:
+    # A quote may be a full label or whole words taken from one ("Output" for "Output e.g., x")
+    padded = f" {quoted} "
+    return any(quoted == label or padded in f" {label} " for label in visible)
 
 
 def _unique_vetoes(issues: list[Issue]) -> list[Issue]:
