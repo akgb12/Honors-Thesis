@@ -5,6 +5,9 @@ from difflib import SequenceMatcher
 from a11y_pipeline.evaluation.concepts import normalize_text
 from a11y_pipeline.ir.models import Issue
 
+# Alt text may use this many words plus this many more for each required label
+ALT_BASE_WORD_LIMIT = 40
+ALT_WORDS_PER_CONCEPT = 40
 FORBIDDEN_OPENERS = ("image of", "picture of", "graphic of")
 FILE_NAME_PATTERN = re.compile(
     r"(?:[A-Za-z]:)?(?:[^/\s\\]+[/\\])*[^/\s\\]+\."
@@ -39,7 +42,7 @@ def evaluate_signals(
     # Evaluate deterministic alt text quality signals
     text = (alt_text or "").strip()
     words = re.findall(r"\b[\w'-]+\b", text)
-    length_limit = 40 * len(required_concepts) + 40
+    length_limit = ALT_WORDS_PER_CONCEPT * len(required_concepts) + ALT_BASE_WORD_LIMIT
     flags: list[str] = []
     issues: list[Issue] = []
     if not text:

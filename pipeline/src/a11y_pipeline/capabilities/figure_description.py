@@ -9,7 +9,7 @@ from a11y_pipeline.capabilities.base import (
 from a11y_pipeline.ir.models import HistoryEntry, Patch
 from a11y_pipeline.models.client import ModelClient, ModelMessage, ModelRequest
 
-PROMPT_VERSION = "figure_description_v1"
+PROMPT_VERSION = "figure_description_v2"
 DEFAULT_MODEL = "claude-sonnet-5-5"
 DEFAULT_MAX_TOKENS = 1000
 

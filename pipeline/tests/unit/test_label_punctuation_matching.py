@@ -69,3 +69,28 @@ def test_quote_of_a_hidden_label_is_still_vetoed() -> None:
     veto = figure_contradiction_veto(element, [])
     assert veto is not None
     assert veto.details["quoted_label"] == "Fold 3"
+
+
+def test_prose_sentences_inside_a_figure_are_not_required_labels() -> None:
+    # A sentence drawn in a TikZ node is prose, so alt text need not repeat it word for word
+    from a11y_pipeline.evaluation.concepts import build_figure_concepts
+
+    figure = _figure("", [])
+    sentence = "Description: red points lie mostly below the line; blue points lie above it."
+    concepts = build_figure_concepts(figure, [], ["Input", "Write a program", sentence], [])
+
+    assert concepts.required == ["label:Input", "label:Write a program"]
+    assert sentence in concepts.visible_labels
+
+
+def test_prompt_states_the_same_alt_text_budget_the_checker_enforces() -> None:
+    # The model must be told the word budget that the length signal applies
+    from pathlib import Path
+
+    import a11y_pipeline.capabilities as capabilities
+    from a11y_pipeline.capabilities.figure_description import PROMPT_VERSION
+    from a11y_pipeline.evaluation.signals import ALT_BASE_WORD_LIMIT
+
+    prompt = (Path(capabilities.__file__).parent / "prompts" / f"{PROMPT_VERSION}.md").read_text()
+    assert f"at most {ALT_BASE_WORD_LIMIT} words" in prompt
+    assert "extended_description" in prompt

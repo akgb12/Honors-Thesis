@@ -84,6 +84,15 @@ def infer_tikz_labels(source: str, parsed_labels: list[str] | None = None) -> li
     return labels
 
 
+# Longer node text is prose, not a diagram label, so alt text need not repeat it verbatim
+MAX_REQUIRED_LABEL_WORDS = 8
+
+
+def _is_prose(label: str) -> bool:
+    # Tell sentences drawn inside a figure apart from short diagram labels
+    return len(label.split()) > MAX_REQUIRED_LABEL_WORDS
+
+
 def build_figure_concepts(
     element: Element,
     nearby_text: list[str],
@@ -124,7 +133,9 @@ def build_figure_concepts(
     for label in visible:
         if normalize_text(label) not in hidden_normalized:
             filtered_visible.append(label)
-    required = _label_concepts_with_sequences(filtered_visible)
+    required = _label_concepts_with_sequences(
+        [label for label in filtered_visible if not _is_prose(label)]
+    )
     excluded: list[str] = []
     for label in hidden:
         excluded.append(f"label:{label}")
