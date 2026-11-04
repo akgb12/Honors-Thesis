@@ -1,0 +1,23 @@
+[build-system]
+requires = ["uv_build>=0.12.0,<0.13.0"]
+build-backend = "uv_build"
+
+[project]
+name = "a11y-pipeline"
+version = "0.1.0"
+description = "Source-neutral document accessibility remediation pipeline"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "anthropic>=0.40,<1",
+    "httpx",
+    "jinja2",
+    "langgraph",
+    "pikepdf",
+    "pillow",
+    "pydantic>=2",
+    "pydantic-settings",
+    "pylatexenc>=2.10,<3",
+]
+
+[project.scripts]
+a11y = "a11y_pipeline.cli:main"

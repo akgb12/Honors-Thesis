@@ -1,0 +1,31 @@
+% ===== a11y markers, BLOCK A (definitions) — MARKED WORKING COPY only =====
+% Insert this block immediately AFTER the \documentclass line (Beamer expands \author etc.
+% at definition time, so the macros must exist before \title/\author). pdfLaTeX only.
+% Verified: pixel-identical output on fixtures/lecture_sample (see VERIFIED_FINDINGS.md).
+\usepackage{zref-savepos}
+\makeatletter
+\newsavebox{\a@elbox}
+% Records read back from the .aux by the pipeline; no-ops for TeX itself.
+\newcommand{\aelsize}[5]{}%    {key}{wd}{ht}{dp}{page}
+\newcommand{\aelspanpos}[2]{}% {key}{page}
+% \aelspan{key}{mcid}{Tag}{content}: inline/paragraph content (titles, items, paragraphs,
+% display math). Records the page and start position, wraps in /Tag <</MCID n>> BDC ... EMC.
+\DeclareRobustCommand{\aelspan}[4]{%
+  \leavevmode\zsavepos{#1@\thepage}%
+  \protected@write\@auxout{\let\thepage\relax}{\string\aelspanpos{#1}{\thepage}}%
+  \pdfliteral page{/#3 <</MCID #2>> BDC}#4\pdfliteral page{EMC}}
+% \aelfigure{key}{mcid}{content}: a figure box (tikzpicture or \includegraphics).
+% Measures the box and records page + position + width/height/depth.
+\DeclareRobustCommand{\aelfigure}[3]{%
+  \sbox{\a@elbox}{#3}%
+  \leavevmode\zsavepos{#1@\thepage}%
+  \edef\a@sz{{#1}{\the\wd\a@elbox}{\the\ht\a@elbox}{\the\dp\a@elbox}}%
+  \protected@write\@auxout{\let\thepage\relax}{\string\aelsize\a@sz{\thepage}}%
+  \pdfliteral page{/Figure <</MCID #2>> BDC}\usebox{\a@elbox}\pdfliteral page{EMC}}
+% Inside PDF strings (bookmarks, pdftitle, pdfauthor) reduce markers to their plain text.
+\pdfstringdefDisableCommands{\def\aelspan#1#2#3#4{#4}\def\aelfigure#1#2#3{}}
+% Artifact wrappers used by BLOCK B.
+\newcommand{\aelartifact}{\pdfliteral page{/Artifact BMC}}
+\newcommand{\aelend}{\pdfliteral page{EMC}}
+\makeatother
+% ===== end BLOCK A =====
